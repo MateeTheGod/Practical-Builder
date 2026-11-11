@@ -50,3 +50,7 @@ python src/build.py
 ```
 
 Badge thresholds come from a community badge sheet. "/" means either option counts, and "&" means both are needed.
+
+## Independent cap comparison
+
+PBLab contributed 69 distinct recorded profiles (1,518 FINAL ratings), kept separate from model fitting. Run `node research/scripts/check-pblab.cjs --summary` with Node.js 18+ to compare the calculator with them, or omit `--summary` for individual discrepancies. See [provenance, baseline results and limitations](research/pblab-validation.md).
