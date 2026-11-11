@@ -1,0 +1,427 @@
+<meta charset="utf-8">
+<title>Player Profile Calculator</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+/* Layout: locker-room console. Controls column (stepper rows like the in-game profile) beside the
+   attribute board; badges below. Category hues come from the game's own panel colors. */
+:root{
+  --bg:#eef0f4; --panel:#ffffff; --panel2:#f5f6f9; --line:#d9dce4; --fg:#161922; --muted:#5d6475;
+  --accent:#e2591b; --accent-ink:#ffffff; --good:#1f8a4c; --bad:#c5352f; --warn:#a86b00;
+  --fin:#1677c9; --sho:#2a9147; --ply:#c27700; --def:#c8382f; --phy:#a33cae; --pst:#6a54c9;
+  --display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;
+  --body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#12141a; --panel:#1b1e26; --panel2:#22262f; --line:#2f3440; --fg:#eceef3; --muted:#9aa1b2;
+  --accent:#ff7a3d; --accent-ink:#1a0d05; --good:#4cc47e; --bad:#ff6b63; --warn:#e5a83a;
+  --fin:#4aa8f0; --sho:#57c573; --ply:#f0a63a; --def:#f06a60; --phy:#d478de; --pst:#9b88f0; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12141a; --panel:#1b1e26; --panel2:#22262f; --line:#2f3440; --fg:#eceef3; --muted:#9aa1b2;
+  --accent:#ff7a3d; --accent-ink:#1a0d05; --good:#4cc47e; --bad:#ff6b63; --warn:#e5a83a;
+  --fin:#4aa8f0; --sho:#57c573; --ply:#f0a63a; --def:#f06a60; --phy:#d478de; --pst:#9b88f0; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:15px;line-height:1.45;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 40px}
+.wrap{max-width:1180px;margin:0 auto;display:grid;gap:18px}
+header{display:flex;flex-wrap:wrap;align-items:end;justify-content:space-between;gap:12px}
+h1{font-family:var(--display);font-weight:700;font-size:clamp(28px,4vw,40px);letter-spacing:.14em;text-transform:uppercase;margin:0;line-height:1}
+.sub{color:var(--muted);margin:6px 0 0;max-width:62ch}
+.tabs{display:flex;gap:4px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:4px}
+.tabs button{font:600 15px var(--display);letter-spacing:.08em;text-transform:uppercase;border:0;background:transparent;color:var(--muted);padding:8px 16px;border-radius:7px;cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--accent);color:var(--accent-ink)}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.grid{display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:860px){.grid{grid-template-columns:minmax(0,1fr)}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;min-width:0}
+.label{font:600 12px var(--display);letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+.ctl{display:grid;gap:12px}
+.row{display:grid;gap:4px}
+.step{display:grid;grid-template-columns:40px 1fr 40px;align-items:center;background:var(--panel2);border:1px solid var(--line);border-radius:9px}
+.step button{height:42px;border:0;background:transparent;color:var(--fg);font-size:22px;cursor:pointer;border-radius:8px}
+.step button:hover{background:var(--line)}
+.step button:disabled{opacity:.3;cursor:default;background:transparent}
+.step output{text-align:center;font:600 22px var(--display);letter-spacing:.14em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hint{font-size:12px;color:var(--warn);min-height:1em}
+.board{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.grp{border-radius:10px;border:1px solid var(--line);background:var(--panel2);padding:10px 12px;min-width:0}
+.grp h3{margin:0 0 6px;font:700 15px var(--display);letter-spacing:.12em;text-transform:uppercase}
+.attr{display:grid;grid-template-columns:1fr auto 3.2em;align-items:baseline;gap:8px;padding:3px 0;border-top:1px solid var(--line)}
+.attr:first-of-type{border-top:0}
+.attr .v{font:700 20px var(--display);font-variant-numeric:tabular-nums;text-align:right}
+.attr .d{font-size:13px;font-variant-numeric:tabular-nums;text-align:right}
+.up{color:var(--good)} .dn{color:var(--bad)} .zero{color:var(--muted)}
+.pm{display:inline-block;font-size:11px;line-height:1.3;color:var(--warn);border:1px solid var(--warn);border-radius:4px;padding:0 4px;margin-left:6px;vertical-align:1px;white-space:nowrap}
+.est{text-decoration:underline dotted var(--warn);text-underline-offset:3px}
+.bar{height:4px;border-radius:2px;background:var(--line);grid-column:1/-1;overflow:hidden}
+.bar i{display:block;height:100%}
+.legend{display:flex;flex-wrap:wrap;gap:14px;color:var(--muted);font-size:13px;margin-top:10px}
+.badges{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}
+.bcat h3{margin:0 0 6px;font:700 15px var(--display);letter-spacing:.12em;text-transform:uppercase}
+.brow{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:4px 0;border-top:1px solid var(--line)}
+.brow:first-of-type{border-top:0}
+.brow .nm{font-weight:500}
+.brow .nx{grid-column:1/-1;font-size:12px;color:var(--muted);margin-top:-2px}
+.brow.off .nm{color:var(--muted)}
+.pips{display:flex;gap:3px}
+.pips i{width:14px;height:14px;border-radius:3px;border:1px solid var(--line);background:transparent}
+.pips i.on{background:var(--cat);border-color:var(--cat)}
+.tierpick{display:flex;gap:3px}
+.tierpick button{width:26px;height:26px;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--muted);font:600 13px var(--display);cursor:pointer}
+.tierpick button.sel{background:var(--cat);border-color:var(--cat);color:#fff}
+.tierpick button.in{border-color:var(--cat);color:var(--fg)}
+.opts{display:flex;flex-wrap:wrap;gap:14px;align-items:center}
+select{font:500 15px var(--body);padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);color:var(--fg)}
+.btn{font:600 15px var(--display);letter-spacing:.1em;text-transform:uppercase;border:0;border-radius:8px;padding:10px 18px;background:var(--accent);color:var(--accent-ink);cursor:pointer}
+.btn.ghost{background:transparent;color:var(--fg);border:1px solid var(--line)}
+.results{display:grid;gap:10px}
+.res{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--panel2)}
+.res .b{font:600 17px var(--display);letter-spacing:.06em;text-transform:uppercase}
+.chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
+.chip{font-size:12px;padding:2px 8px;border-radius:999px;border:1px solid var(--cat);color:var(--fg);white-space:nowrap}
+.chip.miss{border-style:dashed;color:var(--muted)}
+.status{font-size:14px;color:var(--muted)}
+.foot{color:var(--muted);font-size:13px;max-width:80ch}
+.foot p{margin:.4em 0}
+.lim{display:grid;grid-template-columns:minmax(0,1fr) auto 64px 34px;gap:6px;align-items:center}
+.lim select{min-width:0;padding:7px 6px}
+.lim input{width:100%;font:600 16px var(--display);font-variant-numeric:tabular-nums;padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);color:var(--fg)}
+.lim input:disabled{opacity:.35}
+.lim .x{height:34px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--muted);font-size:18px;cursor:pointer}
+.lims{display:grid;gap:6px}
+.chip.att{border-color:var(--muted)}
+@media (prefers-reduced-motion:no-preference){.bar i{transition:width .25s ease}}
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Player Profile Calculator</h1>
+      <p class="sub">Final attributes for any build, worked out from the recorded profile screens. The Badge Finder searches every build for the badges you want.</p>
+    </div>
+    <div class="tabs" role="tablist">
+      <button role="tab" id="tab-calc" aria-selected="true">Calculator</button>
+      <button role="tab" id="tab-find" aria-selected="false">Badge Finder</button>
+    </div>
+  </header>
+
+  <section id="view-calc" class="grid">
+    <div class="card ctl" id="controls"></div>
+    <div class="ctl" style="min-width:0">
+      <div class="card">
+        <div class="board" id="board"></div>
+        <div class="legend">
+          <span><span class="up">+3</span> / <span class="dn">−3</span> change vs the position's base, like the in-game number</span>
+          <span><span class="est">dotted</span> estimate: this build is outside what the recordings covered</span>
+          <span><span class="pm" style="margin-left:0">±1</span> on a rounding edge: the game may show 1 more or less</span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="opts" style="justify-content:space-between;margin-bottom:10px">
+          <div class="label">Badges this build unlocks</div>
+          <label class="status"><input type="checkbox" id="showAll"> Show locked badges</label>
+        </div>
+        <div class="badges" id="badgeList"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="view-find" hidden>
+    <div class="grid">
+      <div class="card ctl">
+        <div class="row"><span class="label">Position</span>
+          <select id="fPos"><option value="ALL">Any position</option></select></div>
+        <div class="row"><span class="label">"Dunk" in badge rules means</span>
+          <select id="dunkMode"><option value="DD">Driving Dunk</option><option value="SD">Standing Dunk</option><option value="max">Whichever is higher</option></select></div>
+        <div class="row"><span class="label">Attribute limits</span>
+          <div class="lims" id="lims"></div>
+          <div class="opts"><button class="btn ghost" id="addLim" style="padding:7px 12px">+ Add limit</button></div>
+          <span class="status" style="font-size:12px">"At least" / "at most" drop builds outside the limit. "Highest" / "lowest" rank the builds that remain.</span></div>
+        <p class="status" style="margin:0">Searches every legal build: all heights, wingspans (height to height+5"), weights in 5 lb steps, body types, and the anomalies that position can pick.</p>
+        <div class="opts"><button class="btn" id="run">Find builds</button><button class="btn ghost" id="clear">Clear picks</button></div>
+        <div class="status" id="pickSummary"></div>
+      </div>
+      <div class="card" style="min-width:0">
+        <div class="label" style="margin-bottom:8px">Pick the minimum tier for each badge you want</div>
+        <div class="badges" id="picker"></div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:18px">
+      <div class="label" id="resTitle" style="margin-bottom:10px">Results</div>
+      <div class="results" id="results"></div>
+    </div>
+  </section>
+
+  <div class="foot">
+    <p><strong>How it works.</strong> FINAL = base + height effect + wingspan-over-height effect + weight effect + body type + anomaly, rounded once and capped at 99. Each position has its own base row, height slope and anomaly values. Built from 5,110 recorded values, including one-setting-at-a-time sweeps read straight from the game: 97% match exactly and nearly all the rest are off by 1. Height, wingspan and weight limits, body types and each position's anomaly list are the game's real options.</p>
+    <p>Badge thresholds come from the badge sheet you linked. Tiers 1–5 are its five rows in order. Where a rule says "/" or "or", any one option counts.</p>
+  </div>
+</div>
+
+<script>
+const MODEL = /*MODEL*/;
+const NAMES={CS:"Close Shot",DL:"Driving Layup",DD:"Driving Dunk",SD:"Standing Dunk",MR:"Mid-Range Shot",TP:"Three-Point Shot",MS:"Moving Shot",FT:"Free Throw",PA:"Pass Accuracy",BH:"Ball Handle",PC:"Post Control",ID:"Interior Defense",PD:"Perimeter Defense",LS:"Lateral Speed",ST:"Steal",BL:"Block",RB:"Rebound",SP:"Speed",AC:"Acceleration",STR:"Strength",VE:"Vertical",STA:"Stamina"};
+const GROUPS=[["Finishing","fin",["CS","DL","DD","SD"]],["Shooting","sho",["MR","TP","MS","FT"]],["Playmaking","ply",["PA","BH","PC"]],["Defense","def",["ID","PD","LS","ST","BL","RB"]],["Physicals","phy",["SP","AC","STR","VE","STA"]]];
+const POSN={PG:"Point Guard",SG:"Shooting Guard",SF:"Small Forward",PF:"Power Forward",C:"Center"};
+const ANOM=[["None","None"],["Fin","Finishing"],["Post","Post-Scoring"],["Def","Defense"],["Play","Playmaking"],["Shoot","Shooting"],["Agility","Agility"]];
+const BODY=["Normal","Slim","Built","Narrow","Bulky"];
+// selectable ranges; "obs" = what the recordings actually covered
+// weight limits are the in-game min/max (recorded for every position)
+// height and weight limits read live from the game for every position
+const RANGE={PG:{h:[69,78],w:[160,205],oh:[69,78],ow:[160,205]},SG:{h:[75,80],w:[180,225],oh:[75,80],ow:[180,225]},
+  SF:{h:[77,82],w:[200,260],oh:[77,82],ow:[200,260]},PF:{h:[79,84],w:[230,290],oh:[79,84],ow:[230,290]},C:{h:[81,87],w:[245,310],oh:[81,87],ow:[245,310]}};
+// anomalies each position can pick, in the game's order
+const ANOM_BY_POS={PG:["None","Post","Def","Fin"],SG:["None","Post","Def","Fin"],SF:["None","Shoot","Play"],PF:["None","Shoot","Play"],C:["None","Shoot","Play","Agility"]};
+const ft=i=>`${Math.floor(i/12)}'${i%12}`;
+let EDGE=0.15; // how close to .5 counts as a rounding edge
+
+function compute(b){
+  const P=MODEL.positions[b.pos], v={}, est={}, alt={};
+  for(const k of MODEL.attrs){
+    const c=P.coef[k]; let x=c.I+c.h*(b.H-P.href)+c.w*(b.WS-b.H-2)+c.c*(b.W-P.wref);
+    if(b.B!=="Normal") x+=MODEL.bodyOffsets[k][b.B]||0;
+    if(b.A!=="None") x+=c.anom[b.A]||0;
+    const cap=(b.pos==="PG"&&k==="ID"&&b.A==="Def")?70:99;
+    v[k]=Math.max(25,Math.min(cap,Math.floor(x+0.5)));
+    // rounding edge: the formula lands within 0.15 of .5, so the game may show the neighbouring value
+    const fr=x-Math.floor(x);
+    if(v[k]<cap&&v[k]>25&&Math.abs(fr-0.5)<EDGE) alt[k]=fr<0.5?v[k]+1:v[k]-1;
+    else if(v[k]===cap&&x<cap+EDGE-0.5) alt[k]=cap-1;
+    const e=P.estimated[k]||[]; const R=RANGE[b.pos];
+    est[k]=e.includes("I")?false:(e.includes("h")&&b.H!==P.href)||(e.includes("w")&&b.WS-b.H!==2)||(e.includes("c")&&b.W!==P.wref)
+      ||(b.A!=="None"&&e.includes("anom:"+b.A))||b.H<R.oh[0]||b.H>R.oh[1]||b.W<R.ow[0]||b.W>R.ow[1]
+      ||(b.B!=="Normal"&&!P.seenBodies.includes(b.B))||(b.A!=="None"&&!P.seenAnomalies.includes(b.A));
+  }
+  return {v,est,alt};
+}
+
+// ---- badges (from the linked sheet) ----
+const CAT={fin:["Finishing","fin"],sho:["Shooting","sho"],ply:["Playmaking","ply"],def:["Defense / Rebounding","def"],pst:["Post-Scoring","pst"],phy:["Physical","phy"]};
+const RAW=[
+["Aerial Assault","fin",["59 Close Shot & 67 Layup","64 Close Shot & 75 Layup","72 Close Shot & 80 Layup","77 Close Shot & 86 Layup","83 Close Shot & 94 Layup"]],
+["Alley-Oop Finisher","fin",["64 Dunk & 60 Vertical","71 Dunk & 67 Vertical","76 Dunk & 75 Vertical","84 Dunk & 82 Vertical","97 Dunk & 88 Vertical"]],
+["Gymnast","fin",["75 Layup & 62 Vertical","81 Layup & 68 Vertical","86 Layup & 74 Vertical","91 Layup & 79 Vertical","95 Layup & 85 Vertical"]],
+["High Flyer","fin",["65 Dunk & 60 Vertical","74 Dunk & 71 Vertical","83 Dunk & 82 Vertical","89 Dunk & 88 Vertical","95 Dunk & 95 Vertical"]],
+["Perfect Lays","fin",["70 Layup / 60 Layup & 70 Close Shot","76 Layup / 66 Layup & 76 Close Shot","81 Layup / 72 Layup & 81 Close Shot","86 Layup / 79 Layup & 87 Close Shot","96 Layup / 85 Layup & 96 Close Shot"]],
+["Putback Finisher","fin",["70 Dunk & 70 Vertical","78 Dunk & 75 Vertical","84 Dunk & 80 Vertical","89 Dunk & 88 Vertical","96 Dunk & 92 Vertical"]],
+["Relentless Finisher","fin",["60 Layup & 74 Stamina","67 Layup & 78 Stamina","75 Layup & 85 Stamina","84 Layup & 91 Stamina","93 Layup & 95 Stamina"]],
+["Traffic Finisher","fin",["67 Dunk & 66 Vertical / 67 Dunk & 62 Strength","76 Dunk & 73 Vertical / 76 Dunk & 73 Strength","81 Dunk & 85 Vertical / 81 Dunk & 76 Strength","87 Dunk & 89 Vertical / 87 Dunk & 83 Strength","95 Dunk & 94 Vertical / 95 Dunk & 94 Strength"]],
+["Catch & Pop","sho",["63 Three / 68 Mid-Range","71 Three / 76 Mid-Range","83 Three / 80 Mid-Range","91 Three & 86 Mid-Range","96 Three & 90 Mid-Range"]],
+["Corner Spot-Up","sho",["68 Three","75 Three","83 Three","88 Three","93 Three"]],
+["Fade Artist","sho",["65 Moving Shot & 75 Mid-Range","70 Moving Shot & 80 Mid-Range","75 Moving Shot & 85 Mid-Range","81 Moving Shot & 91 Mid-Range","86 Moving Shot & 97 Mid-Range"]],
+["Formless Shooter","sho",["66 Mid-Range & 63 Stamina","74 Mid-Range & 69 Stamina","85 Mid-Range & 75 Stamina","93 Mid-Range & 87 Stamina","98 Mid-Range & 94 Stamina"]],
+["Limitless Shooter","sho",["76 Three","82 Three","88 Three","93 Three","96 Three"]],
+["Mid-Range Maestro","sho",["67 Mid-Range","74 Mid-Range","81 Mid-Range","87 Mid-Range","95 Mid-Range"]],
+["Relentless Shooter","sho",["64 Three & 65 Stamina","73 Three & 70 Stamina","81 Three & 78 Stamina","90 Three & 86 Stamina","96 Three & 92 Stamina"]],
+["Tunnel Vision","sho",["66 Three","75 Three","83 Three","90 Three","97 Three"]],
+["Quick Draw","sho",["68 Mid-Range","75 Mid-Range","84 Mid-Range","91 Mid-Range","96 Mid-Range"]],
+["Whistle Wizard","sho",["70 Free Throw","80 Free Throw","85 Free Throw","90 Free Throw","97 Free Throw"]],
+["Dimer","ply",["63 Pass Accuracy","71 Pass Accuracy","81 Pass Accuracy","88 Pass Accuracy","96 Pass Accuracy"]],
+["Dish Out","ply",["68 Pass Accuracy","77 Pass Accuracy","86 Pass Accuracy","91 Pass Accuracy","98 Pass Accuracy"]],
+["Glove","ply",["65 Ball Handle / 65 Post Control & 65 Strength","73 Ball Handle / 72 Post Control & 71 Strength","82 Ball Handle / 82 Post Control & 81 Strength","90 Ball Handle / 90 Post Control & 90 Strength","96 Ball Handle"]],
+["Quick Handles","ply",["67 Ball Handle & 59 Speed","73 Ball Handle & 65 Speed","81 Ball Handle & 70 Speed","88 Ball Handle & 83 Speed","96 Ball Handle & 88 Speed"]],
+["Quick Pass","ply",["63 Pass Accuracy","71 Pass Accuracy","81 Pass Accuracy","88 Pass Accuracy","96 Pass Accuracy"]],
+["Soul Snatcher","ply",["67 Ball Handle","74 Ball Handle","81 Ball Handle","89 Ball Handle","96 Ball Handle"]],
+["Space Maker","ply",["58 Ball Handle & 66 Speed","64 Ball Handle & 73 Speed","70 Ball Handle & 80 Speed","81 Ball Handle & 87 Speed","88 Ball Handle & 96 Speed"]],
+["Tireless Handles","ply",["64 Ball Handle & 59 Stamina","70 Ball Handle & 67 Stamina","79 Ball Handle & 75 Stamina","88 Ball Handle & 82 Stamina","96 Ball Handle & 90 Stamina"]],
+["Intimidator","def",["64 Perimeter Defense","73 Perimeter Defense","80 Perimeter Defense","90 Perimeter Defense","97 Perimeter Defense"]],
+["Locks","def",["64 Perimeter Defense & 62 Lateral Quickness","72 Perimeter Defense & 68 Lateral Quickness","81 Perimeter Defense & 74 Lateral Quickness","89 Perimeter Defense & 81 Lateral Quickness","95 Perimeter Defense & 85 Lateral Quickness"]],
+["Lurker","def",["65 Block & 60 Vertical & 57 Speed","75 Block & 73 Vertical & 67 Speed","83 Block & 79 Vertical & 73 Speed","89 Block & 85 Vertical & 78 Speed","94 Block & 92 Vertical & 82 Speed"]],
+["Navigator","def",["63 Lateral Quickness & 32 Strength","72 Lateral Quickness & 43 Strength","83 Lateral Quickness & 55 Strength","87 Lateral Quickness & 66 Strength","91 Lateral Quickness & 70 Strength"]],
+["Rebound Chaser","def",["59 Rebound","71 Rebound","82 Rebound","90 Rebound","97 Rebound"]],
+["Rim Saver","def",["60 Block & 64 Interior Defense","70 Block & 72 Interior Defense","81 Block & 78 Interior Defense","89 Block & 84 Interior Defense","96 Block & 88 Interior Defense"]],
+["Thief","def",["61 Steal","72 Steal","84 Steal","90 Steal","97 Steal"]],
+["Tough Ankles","def",["64 Perimeter Defense & 62 Stamina","69 Perimeter Defense & 67 Stamina","76 Perimeter Defense & 74 Stamina","81 Perimeter Defense & 78 Stamina","93 Perimeter Defense & 84 Stamina"]],
+["Trampoline","def",["58 Block & 61 Vertical","64 Block & 68 Vertical","74 Block & 76 Vertical","85 Block & 81 Vertical","95 Block & 91 Vertical"]],
+["Deep Post Bag","pst",["67 Post Control","77 Post Control","83 Post Control","88 Post Control","94 Post Control"]],
+["Paint King","pst",["65 Post Control & 70 Strength","75 Post Control & 80 Strength","85 Post Control & 86 Strength","90 Post Control & 91 Strength","95 Post Control & 95 Strength"]],
+["Post Footwork","pst",["68 Post Control & 46 Speed","78 Post Control & 50 Speed","83 Post Control & 53 Speed","88 Post Control & 56 Speed","94 Post Control & 65 Speed"]],
+["Post Lockdown","pst",["62 Strength & 65 Interior Defense","69 Strength & 70 Interior Defense","76 Strength & 75 Interior Defense","88 Strength & 81 Interior Defense","95 Strength & 88 Interior Defense"]],
+["Fast Breaker","phy",["65 Speed","77 Speed","84 Speed","91 Speed","95 Speed"]],
+["Hustler","phy",["65 Speed & 70 Stamina","72 Speed & 75 Stamina","80 Speed & 82 Stamina","88 Speed & 87 Stamina","94 Speed & 92 Stamina"]],
+["Iron Screens","phy",["63 Strength","71 Strength","80 Strength","88 Strength","95 Strength"]]];
+const TOK={"Close Shot":"CS","Layup":"DL","Dunk":"DUNK","Vertical":"VE","Three":"TP","Mid-Range":"MR","Moving Shot":"MS","Stamina":"STA","Free Throw":"FT","Pass Accuracy":"PA","Ball Handle":"BH","Post Control":"PC","Strength":"STR","Speed":"SP","Perimeter Defense":"PD","Lateral Quickness":"LS","Interior Defense":"ID","Block":"BL","Rebound":"RB","Steal":"ST"};
+const BADGES=RAW.map(([name,cat,tiers])=>({name,cat,tiers:tiers.map(s=>s.split(" / ").map(alt=>alt.split(" & ").map(t=>{const m=t.trim().match(/^(\d+)\s+(.+)$/);return [TOK[m[2]],+m[1]];})))}));
+let dunkMode="DD";
+const get=(v,k)=>k==="DUNK"?(dunkMode==="DD"?v.DD:dunkMode==="SD"?v.SD:Math.max(v.DD,v.SD)):v[k];
+const altShort=(v,alt)=>alt.reduce((s,[k,n])=>s+Math.max(0,n-get(v,k)),0);
+const tierShort=(v,b,t)=>Math.min(...b.tiers[t-1].map(a=>altShort(v,a)));
+function tierOf(v,b){let t=0;for(let i=1;i<=5;i++){if(tierShort(v,b,i)===0)t=i;else break;}return t;}
+function nextNeed(v,b,t){
+  if(t>=5)return "Maxed out";
+  const alts=b.tiers[t];let best=null,bs=1e9;
+  for(const a of alts){const s=altShort(v,a);if(s<bs){bs=s;best=a;}}
+  const parts=best.filter(([k,n])=>get(v,k)<n).map(([k,n])=>`+${n-get(v,k)} ${k==="DUNK"?"Dunk":NAMES[k]}`);
+  return `Tier ${t+1} needs ${parts.join(", ")}`;
+}
+const lbl=k=>k==="DUNK"?"Dunk":NAMES[k];
+
+// ---- state ----
+const store={get(k,d){try{const s=localStorage.getItem("ppc-"+k);return s?JSON.parse(s):d}catch(e){return d}},set(k,v){try{localStorage.setItem("ppc-"+k,JSON.stringify(v))}catch(e){}}};
+let build=store.get("build",{pos:"PG",H:74,WS:76,W:180,A:"None",B:"Normal"});
+let picks=store.get("picks",{"Limitless Shooter":3,"Quick Handles":2});
+dunkMode=store.get("dunk","DD");
+
+function clampBuild(){
+  const R=RANGE[build.pos];
+  build.H=Math.min(R.h[1],Math.max(R.h[0],build.H));
+  build.WS=Math.min(build.H+5,Math.max(build.H,build.WS));
+  build.W=Math.min(R.w[1],Math.max(R.w[0],Math.round(build.W/5)*5));
+}
+
+// ---- calculator UI ----
+const STEPS=[
+  ["Position",()=>POSN[build.pos],d=>{const ks=Object.keys(POSN);const i=(ks.indexOf(build.pos)+d+ks.length)%ks.length;const old=build.pos;build.pos=ks[i];
+     const Po=MODEL.positions[old],Pn=MODEL.positions[build.pos];build.H=Pn.href+(build.H-Po.href);build.W=Pn.wref+(build.W-Po.wref);build.WS=build.H+(build.WS-build.H);
+     if(!ANOM_BY_POS[build.pos].includes(build.A))build.A="None";},null],
+  ["Height",()=>ft(build.H),d=>{build.H+=d;build.WS+=d;},()=>[build.H>RANGE[build.pos].h[0],build.H<RANGE[build.pos].h[1]]],
+  ["Wing Span",()=>ft(build.WS),d=>{build.WS+=d;},()=>[build.WS>build.H,build.WS<build.H+5]],
+  ["Weight",()=>build.W,d=>{build.W+=5*d;},()=>[build.W>RANGE[build.pos].w[0],build.W<RANGE[build.pos].w[1]]],
+  ["Anomaly",()=>ANOM.find(a=>a[0]===build.A)[1],d=>{const L=ANOM_BY_POS[build.pos];const i=Math.max(0,L.indexOf(build.A));build.A=L[(i+d+L.length)%L.length];},null],
+  ["Body Type",()=>build.B,d=>{const i=BODY.indexOf(build.B);build.B=BODY[(i+d+BODY.length)%BODY.length];},null]];
+function renderControls(){
+  const el=document.getElementById("controls");el.innerHTML="";
+  STEPS.forEach(([name,show,step,lim],i)=>{
+    const row=document.createElement("div");row.className="row";
+    const [canL,canR]=lim?lim():[true,true];
+    row.innerHTML=`<span class="label">${name}</span><div class="step"><button id="s${i}l" aria-label="Previous ${name}" ${canL?"":"disabled"}>‹</button><output id="s${i}v">${show()}</output><button id="s${i}r" aria-label="Next ${name}" ${canR?"":"disabled"}>›</button></div>`;
+    el.appendChild(row);
+    row.querySelector(`#s${i}l`).onclick=()=>{step(-1);clampBuild();update();};
+    row.querySelector(`#s${i}r`).onclick=()=>{step(1);clampBuild();update();};
+  });
+  const R=RANGE[build.pos],P=MODEL.positions[build.pos],w=[];
+  if(build.H<R.oh[0]||build.H>R.oh[1])w.push(`Height outside the recorded ${ft(R.oh[0])}–${ft(R.oh[1])}`);
+  if(build.W<R.ow[0]||build.W>R.ow[1])w.push(`Weight outside the recorded ${R.ow[0]}–${R.ow[1]} lb`);
+  if(build.A!=="None"&&!P.seenAnomalies.includes(build.A))w.push(`${ANOM.find(a=>a[0]===build.A)[1]} was never recorded for ${POSN[build.pos]}; values are borrowed from other positions`);
+  if(build.B!=="Normal"&&!P.seenBodies.includes(build.B))w.push(`${build.B} was never recorded for ${POSN[build.pos]}`);
+  const h=document.createElement("div");h.className="hint";h.textContent=w.join(". ");el.appendChild(h);
+}
+function renderBoard(){
+  const res=compute(build),{v,est,alt}=res,P=MODEL.positions[build.pos];const el=document.getElementById("board");el.innerHTML="";
+  GROUPS.forEach(([title,cat,keys])=>{
+    const g=document.createElement("div");g.className="grp";g.style.setProperty("--cat",`var(--${cat})`);
+    g.innerHTML=`<h3 style="color:var(--${cat})">${title}</h3>`+keys.map(k=>{
+      const i=MODEL.attrs.indexOf(k),d=v[k]-P.base[i];
+      const pm=alt[k]!==undefined?`<span class="pm" title="On a rounding edge: the game may show ${alt[k]}">±1</span>`:"";
+      return `<div class="attr"><span><span class="${est[k]?"est":""}" title="${est[k]?"Estimated: outside the recorded data":""}">${NAMES[k]}</span>${pm}</span><span class="d ${d>0?"up":d<0?"dn":"zero"}">${d>0?"+"+d:d<0?"−"+(-d):""}</span><span class="v">${v[k]}</span>
+      <span class="bar"><i style="width:${(v[k]-25)/74*100}%;background:var(--${cat})"></i></span></div>`;}).join("");
+    el.appendChild(g);
+  });
+  return res;
+}
+function renderBadges(res){
+  const v=res.v, va={...res.v,...res.alt};
+  const all=document.getElementById("showAll").checked;const el=document.getElementById("badgeList");el.innerHTML="";
+  for(const c of Object.keys(CAT)){
+    const rows=BADGES.filter(b=>b.cat===c).map(b=>[b,tierOf(v,b)]).filter(([b,t])=>all||t>0);
+    if(!rows.length)continue;
+    const box=document.createElement("div");box.className="grp bcat";box.style.setProperty("--cat",`var(--${c})`);
+    box.innerHTML=`<h3 style="color:var(--${c})">${CAT[c][0]}</h3>`+rows.map(([b,t])=>{
+      const ta=tierOf(va,b), bl=ta!==t?`<span class="pm" title="Depends on a ±1 value">${ta>t?"might be "+ta:"might be "+ta}</span>`:"";
+      return `<div class="brow ${t?"":"off"}"><span class="nm">${b.name}${bl}</span><span class="pips" aria-label="Tier ${t} of 5">${[1,2,3,4,5].map(i=>`<i class="${i<=t?"on":""}"></i>`).join("")}</span><span class="nx">${nextNeed(v,b,t)}</span></div>`;}).join("");
+    el.appendChild(box);
+  }
+  if(!el.children.length)el.innerHTML=`<p class="status">No badges at this build. Tick "Show locked badges" to see what each one needs.</p>`;
+}
+function update(){store.set("build",build);renderControls();renderBadges(renderBoard());}
+// (finder) a pick counts as borderline when it is met only because of a ±1 value
+document.getElementById("showAll").onchange=update;
+
+// ---- finder UI ----
+const fPos=document.getElementById("fPos");
+Object.entries(POSN).forEach(([k,n])=>fPos.insertAdjacentHTML("beforeend",`<option value="${k}">${n}</option>`));
+const dm=document.getElementById("dunkMode");dm.value=dunkMode;dm.onchange=()=>{dunkMode=dm.value;store.set("dunk",dunkMode);update();};
+function renderPicker(){
+  const el=document.getElementById("picker");el.innerHTML="";
+  for(const c of Object.keys(CAT)){
+    const box=document.createElement("div");box.className="grp bcat";box.style.setProperty("--cat",`var(--${c})`);
+    box.innerHTML=`<h3 style="color:var(--${c})">${CAT[c][0]}</h3>`;
+    BADGES.filter(b=>b.cat===c).forEach(b=>{
+      const r=document.createElement("div");r.className="brow";const sel=picks[b.name]||0;
+      r.innerHTML=`<span class="nm">${b.name}</span><span class="tierpick">${[1,2,3,4,5].map(i=>`<button aria-label="${b.name} tier ${i}" title="${b.tiers[i-1].map(a=>a.map(([k,n])=>n+" "+lbl(k)).join(" & ")).join("  or  ")}" class="${i===sel?"sel":i<sel?"in":""}">${i}</button>`).join("")}</span>`;
+      r.querySelectorAll("button").forEach((btn,i)=>btn.onclick=()=>{if(picks[b.name]===i+1)delete picks[b.name];else picks[b.name]=i+1;store.set("picks",picks);renderPicker();});
+      box.appendChild(r);
+    });
+    el.appendChild(box);
+  }
+  const n=Object.keys(picks).length;
+  document.getElementById("pickSummary").textContent=n?`${n} badge${n>1?"s":""} picked: `+Object.entries(picks).map(([k,t])=>`${k} ${t}+`).join(", "):"No badges picked yet.";
+}
+document.getElementById("clear").onclick=()=>{picks={};store.set("picks",picks);renderPicker();};
+// ---- attribute limits: [attr, op, value]; op = min | max | hi | lo ----
+let lims=store.get("lims",[]);
+const OPS=[["min","At least"],["max","At most"],["hi","Highest"],["lo","Lowest"]];
+function renderLims(){
+  const el=document.getElementById("lims");el.innerHTML="";
+  lims.forEach((l,i)=>{
+    const r=document.createElement("div");r.className="lim";
+    r.innerHTML=`<select aria-label="Attribute">${MODEL.attrs.map(k=>`<option value="${k}" ${k===l[0]?"selected":""}>${NAMES[k]}</option>`).join("")}</select>
+      <select aria-label="Limit type">${OPS.map(([o,n])=>`<option value="${o}" ${o===l[1]?"selected":""}>${n}</option>`).join("")}</select>
+      <input type="number" min="25" max="99" aria-label="Value" value="${l[2]}" ${l[1]==="hi"||l[1]==="lo"?"disabled":""}>
+      <button class="x" aria-label="Remove limit">×</button>`;
+    const [sa,so]=r.querySelectorAll("select"),inp=r.querySelector("input");
+    sa.onchange=()=>{l[0]=sa.value;saveLims();};
+    so.onchange=()=>{l[1]=so.value;saveLims();renderLims();};
+    inp.oninput=()=>{const n=parseInt(inp.value,10);if(!isNaN(n)){l[2]=Math.max(25,Math.min(99,n));saveLims();}};
+    r.querySelector(".x").onclick=()=>{lims.splice(i,1);saveLims();renderLims();};
+    el.appendChild(r);
+  });
+}
+function saveLims(){store.set("lims",lims);}
+document.getElementById("addLim").onclick=()=>{lims.push(["SP","min",80]);saveLims();renderLims();};
+const limPass=v=>lims.every(([k,o,n])=>o==="min"?v[k]>=n:o==="max"?v[k]<=n:true);
+const limScore=v=>lims.reduce((s,[k,o])=>s+(o==="hi"?v[k]:o==="lo"?-v[k]:0),0);
+const limBord=(v,alt)=>lims.filter(([k,o,n])=>alt[k]!==undefined&&(o==="min"?alt[k]<n:o==="max"?alt[k]>n:false)).length;
+function* allBuilds(pos,wide){
+  const R=RANGE[pos],P=MODEL.positions[pos];
+  const hs=wide?R.h:R.oh, ws=wide?R.w:R.ow;
+  const bodies=BODY, anoms=ANOM_BY_POS[pos];
+  for(let H=hs[0];H<=hs[1];H++)for(let WS=H;WS<=H+5;WS++)for(let W=ws[0];W<=ws[1];W+=5)for(const B of bodies)for(const A of anoms)yield {pos,H,WS,W,A,B};
+}
+function runFinder(){
+  const want=Object.entries(picks).map(([n,t])=>[BADGES.find(b=>b.name===n),t]);
+  const out=document.getElementById("results"),title=document.getElementById("resTitle");
+  if(!want.length&&!lims.length){out.innerHTML=`<p class="status">Pick at least one badge tier or add an attribute limit, then press Find builds.</p>`;title.textContent="Results";return;}
+  const wide=false, poss=fPos.value==="ALL"?Object.keys(POSN):[fPos.value];
+  const res=[];let n=0,nLim=0;
+  for(const pos of poss)for(const b of allBuilds(pos,wide)){
+    n++;const {v,est,alt}=compute(b);
+    if(!limPass(v))continue;
+    nLim++;const va={...v,...alt};
+    let short=0,got=0,bord=limBord(v,alt);for(const [bd,t] of want){const s=tierShort(v,bd,t);short+=s;got+=tierOf(v,bd);if(s===0&&tierShort(va,bd,t)>0)bord++;}
+    let extra=0;for(const bd of BADGES)extra+=tierOf(v,bd);
+    res.push({b,v,va,alt,short,got,extra,bord,ls:limScore(v),estN:Object.values(est).filter(Boolean).length});
+  }
+  res.sort((a,b)=>a.short-b.short||b.ls-a.ls||a.bord-b.bord||b.got-a.got||b.extra-a.extra||a.estN-b.estN);
+  const ok=res.filter(r=>r.short===0);
+  const show=(ok.length?ok:res).slice(0,15);
+  const hard=lims.some(l=>l[1]==="min"||l[1]==="max");
+  const limTxt=hard?` ${nLim.toLocaleString()} of ${n.toLocaleString()} builds pass your attribute limits.`:"";
+  title.textContent=!nLim?`No build passes your attribute limits (${n.toLocaleString()} checked). Loosen a limit.`
+    :!want.length?`${limTxt||n.toLocaleString()+" builds checked."} Best 15`
+    :ok.length?`${ok.length.toLocaleString()} of ${(hard?nLim:n).toLocaleString()} builds${hard?" within your limits":""} reach every pick. Best 15`
+    :`No build${hard?" within your limits":""} reaches every pick (${n.toLocaleString()} checked). Closest 15`;
+  out.innerHTML="";
+  show.forEach(r=>{
+    const d=document.createElement("div");d.className="res";
+    const chips=want.map(([bd,t])=>{const have=tierOf(r.v,bd),ha=tierOf(r.va,bd);const borderline=have>=t&&ha<t;
+      return `<span class="chip ${have>=t?"":"miss"}" style="--cat:var(--${bd.cat})">${bd.name} ${have}${have>=t?"":" (need "+t+")"}${borderline?" · borderline":""}</span>`;}).join("")
+      +[...new Set(lims.map(l=>l[0]))].map(k=>`<span class="chip att">${NAMES[k]} ${r.v[k]}${r.alt[k]!==undefined?" ±1":""}</span>`).join("");
+    const others=BADGES.filter(bd=>!picks[bd.name]&&tierOf(r.v,bd)>0).length;
+    d.innerHTML=`<div style="min-width:0"><div class="b">${POSN[r.b.pos]} · ${ft(r.b.H)} · WS ${ft(r.b.WS)} · ${r.b.W} lb · ${ANOM.find(a=>a[0]===r.b.A)[1]} · ${r.b.B}</div>
+      <div class="chips">${chips}</div><div class="status" style="margin-top:4px">${r.short?`Short by ${r.short} attribute points in total. `:""}Also unlocks ${others} other badge${others===1?"":"s"}.${r.estN?` ${r.estN} values estimated.`:""}</div></div>
+      <button class="btn ghost">Open</button>`;
+    d.querySelector("button").onclick=()=>{build={...r.b};update();selectTab("calc");window.scrollTo({top:0,behavior:"smooth"});};
+    out.appendChild(d);
+  });
+}
+document.getElementById("run").onclick=runFinder;
+function selectTab(t){
+  document.getElementById("tab-calc").setAttribute("aria-selected",t==="calc");document.getElementById("tab-find").setAttribute("aria-selected",t==="find");
+  document.getElementById("view-calc").hidden=t!=="calc";document.getElementById("view-find").hidden=t!=="find";
+}
+document.getElementById("tab-calc").onclick=()=>selectTab("calc");
+document.getElementById("tab-find").onclick=()=>{selectTab("find");};
+clampBuild();update();renderPicker();renderLims();runFinder();
+</script>

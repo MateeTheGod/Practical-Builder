@@ -1,0 +1,3158 @@
+<meta charset="utf-8">
+<title>Player Profile Calculator</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+/* Layout: locker-room console. Controls column (stepper rows like the in-game profile) beside the
+   attribute board; badges below. Category hues come from the game's own panel colors. */
+:root{
+  --bg:#eef0f4; --panel:#ffffff; --panel2:#f5f6f9; --line:#d9dce4; --fg:#161922; --muted:#5d6475;
+  --accent:#e2591b; --accent-ink:#ffffff; --good:#1f8a4c; --bad:#c5352f; --warn:#a86b00;
+  --fin:#1677c9; --sho:#2a9147; --ply:#c27700; --def:#c8382f; --phy:#a33cae; --pst:#6a54c9;
+  --display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;
+  --body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#12141a; --panel:#1b1e26; --panel2:#22262f; --line:#2f3440; --fg:#eceef3; --muted:#9aa1b2;
+  --accent:#ff7a3d; --accent-ink:#1a0d05; --good:#4cc47e; --bad:#ff6b63; --warn:#e5a83a;
+  --fin:#4aa8f0; --sho:#57c573; --ply:#f0a63a; --def:#f06a60; --phy:#d478de; --pst:#9b88f0; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12141a; --panel:#1b1e26; --panel2:#22262f; --line:#2f3440; --fg:#eceef3; --muted:#9aa1b2;
+  --accent:#ff7a3d; --accent-ink:#1a0d05; --good:#4cc47e; --bad:#ff6b63; --warn:#e5a83a;
+  --fin:#4aa8f0; --sho:#57c573; --ply:#f0a63a; --def:#f06a60; --phy:#d478de; --pst:#9b88f0; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:15px;line-height:1.45;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 40px}
+.wrap{max-width:1180px;margin:0 auto;display:grid;gap:18px}
+header{display:flex;flex-wrap:wrap;align-items:end;justify-content:space-between;gap:12px}
+h1{font-family:var(--display);font-weight:700;font-size:clamp(28px,4vw,40px);letter-spacing:.14em;text-transform:uppercase;margin:0;line-height:1}
+.sub{color:var(--muted);margin:6px 0 0;max-width:62ch}
+.tabs{display:flex;gap:4px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:4px}
+.tabs button{font:600 15px var(--display);letter-spacing:.08em;text-transform:uppercase;border:0;background:transparent;color:var(--muted);padding:8px 16px;border-radius:7px;cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--accent);color:var(--accent-ink)}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.grid{display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:860px){.grid{grid-template-columns:minmax(0,1fr)}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;min-width:0}
+.label{font:600 12px var(--display);letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+.ctl{display:grid;gap:12px}
+.row{display:grid;gap:4px}
+.step{display:grid;grid-template-columns:40px 1fr 40px;align-items:center;background:var(--panel2);border:1px solid var(--line);border-radius:9px}
+.step button{height:42px;border:0;background:transparent;color:var(--fg);font-size:22px;cursor:pointer;border-radius:8px}
+.step button:hover{background:var(--line)}
+.step button:disabled{opacity:.3;cursor:default;background:transparent}
+.step output{text-align:center;font:600 22px var(--display);letter-spacing:.14em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hint{font-size:12px;color:var(--warn);min-height:1em}
+.board{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.grp{border-radius:10px;border:1px solid var(--line);background:var(--panel2);padding:10px 12px;min-width:0}
+.grp h3{margin:0 0 6px;font:700 15px var(--display);letter-spacing:.12em;text-transform:uppercase}
+.attr{display:grid;grid-template-columns:1fr auto 3.2em;align-items:baseline;gap:8px;padding:3px 0;border-top:1px solid var(--line)}
+.attr:first-of-type{border-top:0}
+.attr .v{font:700 20px var(--display);font-variant-numeric:tabular-nums;text-align:right}
+.attr .d{font-size:13px;font-variant-numeric:tabular-nums;text-align:right}
+.up{color:var(--good)} .dn{color:var(--bad)} .zero{color:var(--muted)}
+.pm{display:inline-block;font-size:11px;line-height:1.3;color:var(--warn);border:1px solid var(--warn);border-radius:4px;padding:0 4px;margin-left:6px;vertical-align:1px;white-space:nowrap}
+.est{text-decoration:underline dotted var(--warn);text-underline-offset:3px}
+.bar{height:4px;border-radius:2px;background:var(--line);grid-column:1/-1;overflow:hidden}
+.bar i{display:block;height:100%}
+.legend{display:flex;flex-wrap:wrap;gap:14px;color:var(--muted);font-size:13px;margin-top:10px}
+.badges{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}
+.bcat h3{margin:0 0 6px;font:700 15px var(--display);letter-spacing:.12em;text-transform:uppercase}
+.brow{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:4px 0;border-top:1px solid var(--line)}
+.brow:first-of-type{border-top:0}
+.brow .nm{font-weight:500}
+.brow .nx{grid-column:1/-1;font-size:12px;color:var(--muted);margin-top:-2px}
+.brow.off .nm{color:var(--muted)}
+.pips{display:flex;gap:3px}
+.pips i{width:14px;height:14px;border-radius:3px;border:1px solid var(--line);background:transparent}
+.pips i.on{background:var(--cat);border-color:var(--cat)}
+.tierpick{display:flex;gap:3px}
+.tierpick button{width:26px;height:26px;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--muted);font:600 13px var(--display);cursor:pointer}
+.tierpick button.sel{background:var(--cat);border-color:var(--cat);color:#fff}
+.tierpick button.in{border-color:var(--cat);color:var(--fg)}
+.opts{display:flex;flex-wrap:wrap;gap:14px;align-items:center}
+select{font:500 15px var(--body);padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);color:var(--fg)}
+.btn{font:600 15px var(--display);letter-spacing:.1em;text-transform:uppercase;border:0;border-radius:8px;padding:10px 18px;background:var(--accent);color:var(--accent-ink);cursor:pointer}
+.btn.ghost{background:transparent;color:var(--fg);border:1px solid var(--line)}
+.results{display:grid;gap:10px}
+.res{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--panel2)}
+.res .b{font:600 17px var(--display);letter-spacing:.06em;text-transform:uppercase}
+.chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
+.chip{font-size:12px;padding:2px 8px;border-radius:999px;border:1px solid var(--cat);color:var(--fg);white-space:nowrap}
+.chip.miss{border-style:dashed;color:var(--muted)}
+.status{font-size:14px;color:var(--muted)}
+.foot{color:var(--muted);font-size:13px;max-width:80ch}
+.foot p{margin:.4em 0}
+.lim{display:grid;grid-template-columns:minmax(0,1fr) auto 64px 34px;gap:6px;align-items:center}
+.lim select{min-width:0;padding:7px 6px}
+.lim input{width:100%;font:600 16px var(--display);font-variant-numeric:tabular-nums;padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);color:var(--fg)}
+.lim input:disabled{opacity:.35}
+.lim .x{height:34px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--muted);font-size:18px;cursor:pointer}
+.lims{display:grid;gap:6px}
+.chip.att{border-color:var(--muted)}
+@media (prefers-reduced-motion:no-preference){.bar i{transition:width .25s ease}}
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Player Profile Calculator</h1>
+      <p class="sub">Final attributes for any build, worked out from the recorded profile screens. The Badge Finder searches every build for the badges you want.</p>
+    </div>
+    <div class="tabs" role="tablist">
+      <button role="tab" id="tab-calc" aria-selected="true">Calculator</button>
+      <button role="tab" id="tab-find" aria-selected="false">Badge Finder</button>
+    </div>
+  </header>
+
+  <section id="view-calc" class="grid">
+    <div class="card ctl" id="controls"></div>
+    <div class="ctl" style="min-width:0">
+      <div class="card">
+        <div class="board" id="board"></div>
+        <div class="legend">
+          <span><span class="up">+3</span> / <span class="dn">−3</span> change vs the position's base, like the in-game number</span>
+          <span><span class="est">dotted</span> estimate: this build is outside what the recordings covered</span>
+          <span><span class="pm" style="margin-left:0">±1</span> on a rounding edge: the game may show 1 more or less</span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="opts" style="justify-content:space-between;margin-bottom:10px">
+          <div class="label">Badges this build unlocks</div>
+          <label class="status"><input type="checkbox" id="showAll"> Show locked badges</label>
+        </div>
+        <div class="badges" id="badgeList"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="view-find" hidden>
+    <div class="grid">
+      <div class="card ctl">
+        <div class="row"><span class="label">Position</span>
+          <select id="fPos"><option value="ALL">Any position</option></select></div>
+        <div class="row"><span class="label">"Dunk" in badge rules means</span>
+          <select id="dunkMode"><option value="DD">Driving Dunk</option><option value="SD">Standing Dunk</option><option value="max">Whichever is higher</option></select></div>
+        <div class="row"><span class="label">Attribute limits</span>
+          <div class="lims" id="lims"></div>
+          <div class="opts"><button class="btn ghost" id="addLim" style="padding:7px 12px">+ Add limit</button></div>
+          <span class="status" style="font-size:12px">"At least" / "at most" drop builds outside the limit. "Highest" / "lowest" rank the builds that remain.</span></div>
+        <p class="status" style="margin:0">Searches every legal build: all heights, wingspans (height to height+5"), weights in 5 lb steps, body types, and the anomalies that position can pick.</p>
+        <div class="opts"><button class="btn" id="run">Find builds</button><button class="btn ghost" id="clear">Clear picks</button></div>
+        <div class="status" id="pickSummary"></div>
+      </div>
+      <div class="card" style="min-width:0">
+        <div class="label" style="margin-bottom:8px">Pick the minimum tier for each badge you want</div>
+        <div class="badges" id="picker"></div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:18px">
+      <div class="label" id="resTitle" style="margin-bottom:10px">Results</div>
+      <div class="results" id="results"></div>
+    </div>
+  </section>
+
+  <div class="foot">
+    <p><strong>How it works.</strong> FINAL = base + height effect + wingspan-over-height effect + weight effect + body type + anomaly, rounded once and capped at 99. Each position has its own base row, height slope and anomaly values. Built from 5,110 recorded values, including one-setting-at-a-time sweeps read straight from the game: 97% match exactly and nearly all the rest are off by 1. Height, wingspan and weight limits, body types and each position's anomaly list are the game's real options.</p>
+    <p>Badge thresholds come from the badge sheet you linked. Tiers 1–5 are its five rows in order. Where a rule says "/" or "or", any one option counts.</p>
+  </div>
+</div>
+
+<script>
+const MODEL = {
+ "attrs": [
+  "CS",
+  "DL",
+  "DD",
+  "SD",
+  "MR",
+  "TP",
+  "MS",
+  "FT",
+  "PA",
+  "BH",
+  "PC",
+  "ID",
+  "PD",
+  "LS",
+  "ST",
+  "BL",
+  "RB",
+  "SP",
+  "AC",
+  "STR",
+  "VE",
+  "STA"
+ ],
+ "positions": {
+  "PG": {
+   "href": 73,
+   "wref": 180,
+   "base": [
+    84,
+    87,
+    70,
+    45,
+    91,
+    91,
+    92,
+    99,
+    99,
+    94,
+    59,
+    52,
+    80,
+    91,
+    99,
+    55,
+    52,
+    95,
+    94,
+    65,
+    91,
+    99
+   ],
+   "coef": {
+    "CS": {
+     "I": 84.2131,
+     "h": 0.7059,
+     "w": 0.7283,
+     "c": 0.0299,
+     "anom": {
+      "Fin": 15.305,
+      "Post": 4.9547,
+      "Def": -7.1807,
+      "Play": -5.0401,
+      "Shoot": -7.497,
+      "Agility": -2.4025
+     }
+    },
+    "DL": {
+     "I": 87.3079,
+     "h": 0.8287,
+     "w": 0.7062,
+     "c": 0.0226,
+     "anom": {
+      "Fin": 12.2761,
+      "Post": 5.028,
+      "Def": -7.1378,
+      "Play": -5.5896,
+      "Shoot": -6.7609,
+      "Agility": -2.5757
+     }
+    },
+    "DD": {
+     "I": 70.1696,
+     "h": 1.624,
+     "w": 0.9944,
+     "c": -0.0539,
+     "anom": {
+      "Fin": 19.8489,
+      "Post": 0.0851,
+      "Def": -4.99,
+      "Play": -7.5709,
+      "Shoot": -11.0449,
+      "Agility": -2.6905
+     }
+    },
+    "SD": {
+     "I": 44.6109,
+     "h": 2.1354,
+     "w": 0.8788,
+     "c": 0.0013,
+     "anom": {
+      "Fin": 13.6084,
+      "Post": -0.1759,
+      "Def": -2.392,
+      "Play": -8.3046,
+      "Shoot": -11.1789,
+      "Agility": -2.7879
+     }
+    },
+    "MR": {
+     "I": 91.0429,
+     "h": -0.5789,
+     "w": -1.1107,
+     "c": -0.0018,
+     "anom": {
+      "Fin": -15.9118,
+      "Post": 8.8493,
+      "Def": -23.3463,
+      "Play": -5.0315,
+      "Shoot": 9.8568,
+      "Agility": -5.0512
+     }
+    },
+    "TP": {
+     "I": 90.8779,
+     "h": -0.5788,
+     "w": -1.2298,
+     "c": 0.003,
+     "anom": {
+      "Fin": -16.1942,
+      "Post": -11.192,
+      "Def": -23.4777,
+      "Play": -4.9979,
+      "Shoot": 10.2761,
+      "Agility": -4.7718
+     }
+    },
+    "MS": {
+     "I": 91.7187,
+     "h": -0.5508,
+     "w": -0.7878,
+     "c": -0.0718,
+     "anom": {
+      "Fin": -18.375,
+      "Post": -4.9701,
+      "Def": -20.6956,
+      "Play": -5.3708,
+      "Shoot": 9.999,
+      "Agility": -5.0533
+     }
+    },
+    "FT": {
+     "I": 99.0,
+     "h": 0.0,
+     "w": 0.0,
+     "c": 0.0,
+     "anom": {
+      "Fin": 0.0,
+      "Post": 0.0,
+      "Def": 0.0,
+      "Play": 0.0,
+      "Shoot": 0.0,
+      "Agility": 0.0
+     }
+    },
+    "PA": {
+     "I": 101.1249,
+     "h": -0.4443,
+     "w": 0.0138,
+     "c": -0.0168,
+     "anom": {
+      "Fin": -18.1258,
+      "Post": -10.8435,
+      "Def": -12.212,
+      "Play": 12.1174,
+      "Shoot": -5.3174,
+      "Agility": -4.8477
+     }
+    },
+    "BH": {
+     "I": 93.7406,
+     "h": -1.5541,
+     "w": -1.8305,
+     "c": -0.1364,
+     "anom": {
+      "Fin": -6.0346,
+      "Post": -11.1861,
+      "Def": -14.7457,
+      "Play": 14.3795,
+      "Shoot": -5.1624,
+      "Agility": -3.5776
+     }
+    },
+    "PC": {
+     "I": 59.3544,
+     "h": 0.3494,
+     "w": 0.6355,
+     "c": 0.214,
+     "anom": {
+      "Fin": -0.0193,
+      "Post": 19.7765,
+      "Def": -0.1155,
+      "Play": -2.1306,
+      "Shoot": -2.9961,
+      "Agility": -9.3002
+     }
+    },
+    "ID": {
+     "I": 52.3028,
+     "h": 2.1419,
+     "w": 0.7351,
+     "c": 0.1505,
+     "anom": {
+      "Fin": -0.0062,
+      "Post": 0.1816,
+      "Def": 14.6596,
+      "Play": -5.8786,
+      "Shoot": -6.3338,
+      "Agility": 0.255
+     }
+    },
+    "PD": {
+     "I": 79.9399,
+     "h": 0.9742,
+     "w": 0.6301,
+     "c": 0.0076,
+     "anom": {
+      "Fin": -0.0176,
+      "Post": 0.0086,
+      "Def": 19.2545,
+      "Play": -5.7568,
+      "Shoot": -6.122,
+      "Agility": 0.197
+     }
+    },
+    "LS": {
+     "I": 91.1548,
+     "h": -0.464,
+     "w": 0.03,
+     "c": -0.2739,
+     "anom": {
+      "Fin": -0.1415,
+      "Post": -0.1098,
+      "Def": 10.483,
+      "Play": -5.0123,
+      "Shoot": -5.5615,
+      "Agility": 9.8205
+     }
+    },
+    "ST": {
+     "I": 99.2694,
+     "h": -1.5121,
+     "w": 2.5271,
+     "c": 0.0116,
+     "anom": {
+      "Fin": -0.3846,
+      "Post": 0.1416,
+      "Def": 10.7158,
+      "Play": -6.5921,
+      "Shoot": -5.6107,
+      "Agility": -0.0367
+     }
+    },
+    "BL": {
+     "I": 55.0022,
+     "h": 2.2073,
+     "w": 1.0062,
+     "c": 0.0041,
+     "anom": {
+      "Fin": -0.09,
+      "Post": 0.0453,
+      "Def": 9.8987,
+      "Play": -8.3509,
+      "Shoot": -7.4523,
+      "Agility": -0.0296
+     }
+    },
+    "RB": {
+     "I": 52.0595,
+     "h": 1.0285,
+     "w": 0.7747,
+     "c": 0.056,
+     "anom": {
+      "Fin": -0.0722,
+      "Post": 0.0593,
+      "Def": 14.847,
+      "Play": -7.4047,
+      "Shoot": -2.0394,
+      "Agility": 0.0
+     }
+    },
+    "SP": {
+     "I": 95.1508,
+     "h": -0.6988,
+     "w": 0.0106,
+     "c": -0.1112,
+     "anom": {
+      "Fin": 5.8086,
+      "Post": -2.0147,
+      "Def": 6.1313,
+      "Play": 4.3366,
+      "Shoot": -3.1714,
+      "Agility": 12.259
+     }
+    },
+    "AC": {
+     "I": 94.3696,
+     "h": -0.7516,
+     "w": -0.0087,
+     "c": -0.0879,
+     "anom": {
+      "Fin": 6.1576,
+      "Post": -1.9351,
+      "Def": 5.8103,
+      "Play": 4.2519,
+      "Shoot": -2.8927,
+      "Agility": 12.1407
+     }
+    },
+    "STR": {
+     "I": 64.9321,
+     "h": 0.344,
+     "w": 0.0296,
+     "c": 0.2449,
+     "anom": {
+      "Fin": 9.8165,
+      "Post": 9.8927,
+      "Def": 4.8863,
+      "Play": -4.071,
+      "Shoot": -3.9055,
+      "Agility": -6.0988
+     }
+    },
+    "VE": {
+     "I": 91.2563,
+     "h": -0.5689,
+     "w": 0.0294,
+     "c": -0.0815,
+     "anom": {
+      "Fin": 10.4004,
+      "Post": -0.1652,
+      "Def": 5.7315,
+      "Play": 0.1063,
+      "Shoot": -1.1806,
+      "Agility": 7.7933
+     }
+    },
+    "STA": {
+     "I": 99.5099,
+     "h": 0.0,
+     "w": 0.0,
+     "c": 0.0,
+     "anom": {
+      "Fin": 0.0,
+      "Post": 0.0,
+      "Def": 0.0,
+      "Play": 0.0,
+      "Shoot": 0.0,
+      "Agility": 0.0
+     }
+    }
+   },
+   "estimated": {
+    "CS": [
+     "anom:Agility",
+     "anom:Fin",
+     "anom:Play",
+     "anom:Shoot"
+    ],
+    "DL": [
+     "anom:Agility",
+     "anom:Fin",
+     "anom:Play",
+     "anom:Shoot"
+    ],
+    "DD": [
+     "anom:Agility",
+     "anom:Play",
+     "anom:Shoot"
+    ],
+    "SD": [
+     "anom:Agility",
+     "anom:Play",
+     "anom:Shoot"
+    ],
+    "MR": [
+     "anom:Agility",
+     "anom:Play",
+     "anom:Shoot"
+    ],
+    "TP": [
+     "anom:Agility",
+     "anom:Play",
+     "anom:Shoot"
+    ],
+    "MS": [
+     "anom:Agility",
+     "anom:Play",
+     "anom:Shoot"
+    ],
+    "FT": [
+     "I",
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Play",
+     "anom:Post",
+     "anom:Shoot",
+     "c",
+     "h",
+     "w"
+    ],
+    "PA": [
+     "anom:Agility",
+     "anom:Play",
+     "anom:Shoot"
+    ],
+    "BH": [
+     "anom:Agility",
+     "anom:Play",
+     "anom:Shoot"
+    ],
+    "PC": [
+     "anom:Agility",
+     "anom:Play",
+     "anom:Shoot"
+    ],
+    "ID": [
+     "anom:Agility",
+     "anom:Play",
+     "anom:Shoot"
+    ],
+    "PD": [
+     "anom:Agility",
+     "anom:Play",
+     "anom:Shoot"
+    ],
+    "LS": [
+     "anom:Agility",
+     "anom:Play",
+     "anom:Shoot"
+    ],
+    "ST": [
+     "anom:Agility",
+     "anom:Def",
+     "anom:Play",
+     "anom:Shoot"
+    ],
+    "BL": [
+     "anom:Agility",
+     "anom:Play",
+     "anom:Shoot"
+    ],
+    "RB": [
+     "anom:Agility",
+     "anom:Play",
+     "anom:Shoot"
+    ],
+    "SP": [
+     "anom:Agility",
+     "anom:Play",
+     "anom:Shoot"
+    ],
+    "AC": [
+     "anom:Agility",
+     "anom:Play",
+     "anom:Shoot"
+    ],
+    "STR": [
+     "anom:Agility",
+     "anom:Play",
+     "anom:Shoot"
+    ],
+    "VE": [
+     "anom:Agility",
+     "anom:Fin",
+     "anom:Play",
+     "anom:Shoot"
+    ],
+    "STA": [
+     "I",
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Play",
+     "anom:Post",
+     "anom:Shoot",
+     "c",
+     "h",
+     "w"
+    ]
+   },
+   "seenAnomalies": [
+    "Def",
+    "Fin",
+    "None",
+    "Post"
+   ],
+   "seenBodies": [
+    "Built",
+    "Bulky",
+    "Narrow",
+    "Normal",
+    "Slim"
+   ],
+   "heights": [
+    69,
+    70,
+    71,
+    72,
+    73,
+    74,
+    75,
+    76,
+    77,
+    78
+   ],
+   "weights": [
+    160,
+    165,
+    170,
+    175,
+    180,
+    185,
+    190,
+    195,
+    200,
+    205
+   ]
+  },
+  "SG": {
+   "href": 77,
+   "wref": 200,
+   "base": [
+    85,
+    87,
+    75,
+    55,
+    96,
+    96,
+    96,
+    99,
+    88,
+    83,
+    63,
+    61,
+    87,
+    80,
+    81,
+    62,
+    65,
+    90,
+    90,
+    73,
+    88,
+    99
+   ],
+   "coef": {
+    "CS": {
+     "I": 84.9531,
+     "h": 1.7473,
+     "w": 0.7665,
+     "c": 0.0366,
+     "anom": {
+      "Fin": 13.5569,
+      "Post": 5.1269,
+      "Def": -10.1156,
+      "Play": -5.0401,
+      "Shoot": -7.497,
+      "Agility": -2.4025
+     }
+    },
+    "DL": {
+     "I": 87.3918,
+     "h": 1.7791,
+     "w": 0.771,
+     "c": 0.0298,
+     "anom": {
+      "Fin": 11.1182,
+      "Post": 4.8172,
+      "Def": -9.611,
+      "Play": -5.5896,
+      "Shoot": -6.7609,
+      "Agility": -2.5757
+     }
+    },
+    "DD": {
+     "I": 75.2555,
+     "h": 2.8173,
+     "w": 1.024,
+     "c": -0.0432,
+     "anom": {
+      "Fin": 19.7425,
+      "Post": -0.0107,
+      "Def": -9.8593,
+      "Play": -7.5709,
+      "Shoot": -11.0449,
+      "Agility": -2.6905
+     }
+    },
+    "SD": {
+     "I": 55.0957,
+     "h": 2.7496,
+     "w": 0.891,
+     "c": 0.0037,
+     "anom": {
+      "Fin": 13.9029,
+      "Post": 0.0537,
+      "Def": -7.2013,
+      "Play": -8.3046,
+      "Shoot": -11.1789,
+      "Agility": -2.7879
+     }
+    },
+    "MR": {
+     "I": 96.0454,
+     "h": -0.9464,
+     "w": -1.0662,
+     "c": 0.0032,
+     "anom": {
+      "Fin": -21.0433,
+      "Post": 8.8493,
+      "Def": -21.9942,
+      "Play": -5.0315,
+      "Shoot": 9.8568,
+      "Agility": -5.0512
+     }
+    },
+    "TP": {
+     "I": 96.0382,
+     "h": -0.9552,
+     "w": -1.3066,
+     "c": -0.001,
+     "anom": {
+      "Fin": -21.0361,
+      "Post": -12.0653,
+      "Def": -22.1079,
+      "Play": -4.9979,
+      "Shoot": 10.2761,
+      "Agility": -4.7718
+     }
+    },
+    "MS": {
+     "I": 95.7136,
+     "h": -0.9917,
+     "w": -0.8165,
+     "c": -0.0678,
+     "anom": {
+      "Fin": -18.7117,
+      "Post": -4.9601,
+      "Def": -17.3015,
+      "Play": -5.3708,
+      "Shoot": 9.999,
+      "Agility": -5.0533
+     }
+    },
+    "FT": {
+     "I": 99.0,
+     "h": 0.0,
+     "w": 0.0,
+     "c": 0.0,
+     "anom": {
+      "Fin": 0.0,
+      "Post": 0.0,
+      "Def": 0.0,
+      "Play": 0.0,
+      "Shoot": 0.0,
+      "Agility": 0.0
+     }
+    },
+    "PA": {
+     "I": 87.9934,
+     "h": -0.9998,
+     "w": -0.0011,
+     "c": 0.0001,
+     "anom": {
+      "Fin": -20.9913,
+      "Post": -14.0012,
+      "Def": -14.989,
+      "Play": 12.1174,
+      "Shoot": -5.3174,
+      "Agility": -4.8477
+     }
+    },
+    "BH": {
+     "I": 83.0759,
+     "h": -1.4313,
+     "w": -1.7948,
+     "c": -0.1339,
+     "anom": {
+      "Fin": -6.0753,
+      "Post": -11.3264,
+      "Def": -17.4006,
+      "Play": 14.3795,
+      "Shoot": -5.1624,
+      "Agility": -3.5776
+     }
+    },
+    "PC": {
+     "I": 62.8573,
+     "h": 0.9676,
+     "w": 0.5644,
+     "c": 0.1975,
+     "anom": {
+      "Fin": 0.1427,
+      "Post": 19.9605,
+      "Def": -4.8623,
+      "Play": -2.1306,
+      "Shoot": -2.9961,
+      "Agility": -9.3002
+     }
+    },
+    "ID": {
+     "I": 61.4147,
+     "h": 2.495,
+     "w": 0.7977,
+     "c": 0.1345,
+     "anom": {
+      "Fin": -0.4146,
+      "Post": -0.2516,
+      "Def": 14.7143,
+      "Play": -5.8786,
+      "Shoot": -6.3338,
+      "Agility": 0.255
+     }
+    },
+    "PD": {
+     "I": 86.6622,
+     "h": 2.1948,
+     "w": 0.6004,
+     "c": 0.023,
+     "anom": {
+      "Fin": 0.3377,
+      "Post": 0.3107,
+      "Def": 19.2545,
+      "Play": -5.7568,
+      "Shoot": -6.122,
+      "Agility": 0.197
+     }
+    },
+    "LS": {
+     "I": 79.8945,
+     "h": -0.9668,
+     "w": -0.0282,
+     "c": -0.2183,
+     "anom": {
+      "Fin": 0.1055,
+      "Post": 0.1314,
+      "Def": 8.6483,
+      "Play": -5.0123,
+      "Shoot": -5.5615,
+      "Agility": 9.8205
+     }
+    },
+    "ST": {
+     "I": 81.078,
+     "h": -2.2395,
+     "w": 2.7188,
+     "c": -0.0045,
+     "anom": {
+      "Fin": -0.078,
+      "Post": -0.1137,
+      "Def": 10.7158,
+      "Play": -6.5921,
+      "Shoot": -5.6107,
+      "Agility": -0.0367
+     }
+    },
+    "BL": {
+     "I": 62.2267,
+     "h": 3.2568,
+     "w": 0.9466,
+     "c": 0.003,
+     "anom": {
+      "Fin": -0.2267,
+      "Post": -0.1729,
+      "Def": 10.1243,
+      "Play": -8.3509,
+      "Shoot": -7.4523,
+      "Agility": -0.0296
+     }
+    },
+    "RB": {
+     "I": 65.4373,
+     "h": 3.426,
+     "w": 0.7783,
+     "c": 0.063,
+     "anom": {
+      "Fin": -0.4372,
+      "Post": -0.0837,
+      "Def": 6.1914,
+      "Play": -7.4047,
+      "Shoot": -2.0394,
+      "Agility": 0.0
+     }
+    },
+    "SP": {
+     "I": 90.2971,
+     "h": -0.6017,
+     "w": -0.0027,
+     "c": -0.0866,
+     "anom": {
+      "Fin": 5.7024,
+      "Post": -2.4246,
+      "Def": 3.8927,
+      "Play": 4.3366,
+      "Shoot": -3.1714,
+      "Agility": 12.259
+     }
+    },
+    "AC": {
+     "I": 89.8801,
+     "h": -0.4119,
+     "w": -0.0179,
+     "c": -0.0927,
+     "anom": {
+      "Fin": 6.1193,
+      "Post": -1.847,
+      "Def": 4.4128,
+      "Play": 4.2519,
+      "Shoot": -2.8927,
+      "Agility": 12.1407
+     }
+    },
+    "STR": {
+     "I": 73.2688,
+     "h": 0.5852,
+     "w": 0.0212,
+     "c": 0.2375,
+     "anom": {
+      "Fin": 9.7302,
+      "Post": 9.9565,
+      "Def": 6.0775,
+      "Play": -4.071,
+      "Shoot": -3.9055,
+      "Agility": -6.0988
+     }
+    },
+    "VE": {
+     "I": 88.202,
+     "h": -0.4348,
+     "w": -0.0275,
+     "c": -0.0618,
+     "anom": {
+      "Fin": 10.308,
+      "Post": -0.2804,
+      "Def": 5.9472,
+      "Play": 0.1063,
+      "Shoot": -1.1806,
+      "Agility": 7.7933
+     }
+    },
+    "STA": {
+     "I": 99.5099,
+     "h": 0.0,
+     "w": 0.0,
+     "c": 0.0,
+     "anom": {
+      "Fin": 0.0,
+      "Post": 0.0,
+      "Def": 0.0,
+      "Play": 0.0,
+      "Shoot": 0.0,
+      "Agility": 0.0
+     }
+    }
+   },
+   "estimated": {
+    "CS": [
+     "anom:Agility",
+     "anom:Fin",
+     "anom:Play",
+     "anom:Shoot"
+    ],
+    "DL": [
+     "anom:Agility",
+     "anom:Fin",
+     "anom:Play",
+     "anom:Shoot"
+    ],
+    "DD": [
+     "anom:Agility",
+     "anom:Play",
+     "anom:Shoot"
+    ],
+    "SD": [
+     "anom:Agility",
+     "anom:Play",
+     "anom:Shoot"
+    ],
+    "MR": [
+     "anom:Agility",
+     "anom:Play",
+     "anom:Post",
+     "anom:Shoot"
+    ],
+    "TP": [
+     "anom:Agility",
+     "anom:Play",
+     "anom:Shoot"
+    ],
+    "MS": [
+     "anom:Agility",
+     "anom:Play",
+     "anom:Shoot"
+    ],
+    "FT": [
+     "I",
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Play",
+     "anom:Post",
+     "anom:Shoot",
+     "c",
+     "h",
+     "w"
+    ],
+    "PA": [
+     "anom:Agility",
+     "anom:Play",
+     "anom:Shoot"
+    ],
+    "BH": [
+     "anom:Agility",
+     "anom:Play",
+     "anom:Shoot"
+    ],
+    "PC": [
+     "anom:Agility",
+     "anom:Play",
+     "anom:Shoot"
+    ],
+    "ID": [
+     "anom:Agility",
+     "anom:Play",
+     "anom:Shoot"
+    ],
+    "PD": [
+     "anom:Agility",
+     "anom:Def",
+     "anom:Play",
+     "anom:Shoot"
+    ],
+    "LS": [
+     "anom:Agility",
+     "anom:Play",
+     "anom:Shoot"
+    ],
+    "ST": [
+     "anom:Agility",
+     "anom:Play",
+     "anom:Shoot"
+    ],
+    "BL": [
+     "anom:Agility",
+     "anom:Play",
+     "anom:Shoot"
+    ],
+    "RB": [
+     "anom:Agility",
+     "anom:Play",
+     "anom:Shoot"
+    ],
+    "SP": [
+     "anom:Agility",
+     "anom:Play",
+     "anom:Shoot"
+    ],
+    "AC": [
+     "anom:Agility",
+     "anom:Play",
+     "anom:Shoot"
+    ],
+    "STR": [
+     "anom:Agility",
+     "anom:Play",
+     "anom:Shoot"
+    ],
+    "VE": [
+     "anom:Agility",
+     "anom:Fin",
+     "anom:Play",
+     "anom:Shoot"
+    ],
+    "STA": [
+     "I",
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Play",
+     "anom:Post",
+     "anom:Shoot",
+     "c",
+     "h",
+     "w"
+    ]
+   },
+   "seenAnomalies": [
+    "Def",
+    "Fin",
+    "None",
+    "Post"
+   ],
+   "seenBodies": [
+    "Built",
+    "Bulky",
+    "Narrow",
+    "Normal",
+    "Slim"
+   ],
+   "heights": [
+    75,
+    76,
+    77,
+    78,
+    79,
+    80
+   ],
+   "weights": [
+    180,
+    185,
+    190,
+    195,
+    200,
+    205,
+    210,
+    215,
+    220,
+    225
+   ]
+  },
+  "SF": {
+   "href": 79,
+   "wref": 230,
+   "base": [
+    95,
+    97,
+    95,
+    79,
+    88,
+    83,
+    81,
+    99,
+    84,
+    77,
+    75,
+    88,
+    95,
+    79,
+    77,
+    84,
+    85,
+    85,
+    84,
+    81,
+    96,
+    99
+   ],
+   "coef": {
+    "CS": {
+     "I": 94.877,
+     "h": 1.7133,
+     "w": 0.7024,
+     "c": 0.0204,
+     "anom": {
+      "Fin": 0.0,
+      "Post": 5.0408,
+      "Def": -8.6481,
+      "Play": -4.8262,
+      "Shoot": -7.8762,
+      "Agility": -2.4025
+     }
+    },
+    "DL": {
+     "I": 97.3558,
+     "h": 1.7558,
+     "w": 0.6099,
+     "c": 0.0199,
+     "anom": {
+      "Fin": 0.0,
+      "Post": 4.9226,
+      "Def": -8.3744,
+      "Play": -7.1451,
+      "Shoot": -5.3553,
+      "Agility": -2.5757
+     }
+    },
+    "DD": {
+     "I": 94.7323,
+     "h": 2.3595,
+     "w": 1.0069,
+     "c": -0.0408,
+     "anom": {
+      "Fin": 19.7957,
+      "Post": 0.0372,
+      "Def": -7.4246,
+      "Play": -10.0838,
+      "Shoot": -9.7314,
+      "Agility": -2.6905
+     }
+    },
+    "SD": {
+     "I": 78.7971,
+     "h": 2.709,
+     "w": 0.7345,
+     "c": -0.0004,
+     "anom": {
+      "Fin": 13.7556,
+      "Post": -0.0611,
+      "Def": -4.7966,
+      "Play": -9.9613,
+      "Shoot": -9.7961,
+      "Agility": -2.7879
+     }
+    },
+    "MR": {
+     "I": 87.9189,
+     "h": -1.2647,
+     "w": -1.0758,
+     "c": -0.0011,
+     "anom": {
+      "Fin": -18.4776,
+      "Post": 8.8493,
+      "Def": -22.6702,
+      "Play": -3.8063,
+      "Shoot": 8.0803,
+      "Agility": -5.0512
+     }
+    },
+    "TP": {
+     "I": 83.1298,
+     "h": -1.1907,
+     "w": -1.2288,
+     "c": 0.001,
+     "anom": {
+      "Fin": -18.6151,
+      "Post": -11.6286,
+      "Def": -22.7928,
+      "Play": -3.57,
+      "Shoot": 8.8693,
+      "Agility": -4.7718
+     }
+    },
+    "MS": {
+     "I": 80.6809,
+     "h": -1.011,
+     "w": -0.7544,
+     "c": -0.0507,
+     "anom": {
+      "Fin": -18.5434,
+      "Post": -4.9651,
+      "Def": -18.9986,
+      "Play": -4.8746,
+      "Shoot": 7.3184,
+      "Agility": -5.0533
+     }
+    },
+    "FT": {
+     "I": 99.0,
+     "h": 0.0,
+     "w": 0.0,
+     "c": 0.0,
+     "anom": {
+      "Fin": 0.0,
+      "Post": 0.0,
+      "Def": 0.0,
+      "Play": 0.0,
+      "Shoot": 0.0,
+      "Agility": 0.0
+     }
+    },
+    "PA": {
+     "I": 83.705,
+     "h": -0.2626,
+     "w": 0.0126,
+     "c": -0.0198,
+     "anom": {
+      "Fin": -18.4944,
+      "Post": -11.3582,
+      "Def": -12.5363,
+      "Play": 12.1174,
+      "Shoot": -3.7047,
+      "Agility": -4.8477
+     }
+    },
+    "BH": {
+     "I": 77.0249,
+     "h": -1.0988,
+     "w": -1.8157,
+     "c": -0.1072,
+     "anom": {
+      "Fin": -6.055,
+      "Post": -11.2563,
+      "Def": -16.0732,
+      "Play": 12.4227,
+      "Shoot": -4.0245,
+      "Agility": -3.5776
+     }
+    },
+    "PC": {
+     "I": 74.8608,
+     "h": 0.7004,
+     "w": 0.6501,
+     "c": 0.1615,
+     "anom": {
+      "Fin": 0.0617,
+      "Post": 19.8685,
+      "Def": -2.4889,
+      "Play": 2.4531,
+      "Shoot": 0.1392,
+      "Agility": -9.3002
+     }
+    },
+    "ID": {
+     "I": 88.1646,
+     "h": 1.8938,
+     "w": 0.7405,
+     "c": 0.1123,
+     "anom": {
+      "Fin": -0.2104,
+      "Post": -0.035,
+      "Def": 14.6869,
+      "Play": -9.8505,
+      "Shoot": -4.1642,
+      "Agility": 0.255
+     }
+    },
+    "PD": {
+     "I": 95.3263,
+     "h": 2.2646,
+     "w": 0.6623,
+     "c": 0.0175,
+     "anom": {
+      "Fin": 0.1601,
+      "Post": 0.1596,
+      "Def": 19.2545,
+      "Play": -9.9407,
+      "Shoot": -3.326,
+      "Agility": 0.197
+     }
+    },
+    "LS": {
+     "I": 79.0792,
+     "h": -1.0048,
+     "w": -0.0097,
+     "c": -0.1637,
+     "anom": {
+      "Fin": -0.018,
+      "Post": 0.0108,
+      "Def": 9.5657,
+      "Play": -7.5521,
+      "Shoot": -2.079,
+      "Agility": 9.8205
+     }
+    },
+    "ST": {
+     "I": 77.209,
+     "h": -2.2194,
+     "w": 2.7753,
+     "c": 0.0001,
+     "anom": {
+      "Fin": -0.2313,
+      "Post": 0.014,
+      "Def": 10.7158,
+      "Play": -9.8521,
+      "Shoot": -2.2087,
+      "Agility": -0.0367
+     }
+    },
+    "BL": {
+     "I": 83.8502,
+     "h": 3.2661,
+     "w": 0.9874,
+     "c": -0.0001,
+     "anom": {
+      "Fin": -0.1584,
+      "Post": -0.0638,
+      "Def": 10.0115,
+      "Play": -12.7627,
+      "Shoot": -2.8499,
+      "Agility": -0.0296
+     }
+    },
+    "RB": {
+     "I": 84.6215,
+     "h": 2.5134,
+     "w": 0.7761,
+     "c": 0.0437,
+     "anom": {
+      "Fin": -0.2547,
+      "Post": -0.0122,
+      "Def": 10.5192,
+      "Play": -7.4047,
+      "Shoot": -2.6213,
+      "Agility": 0.0
+     }
+    },
+    "SP": {
+     "I": 84.9681,
+     "h": -0.6417,
+     "w": 0.0145,
+     "c": -0.0689,
+     "anom": {
+      "Fin": 5.7555,
+      "Post": -2.2197,
+      "Def": 5.012,
+      "Play": 3.0745,
+      "Shoot": -1.9679,
+      "Agility": 12.259
+     }
+    },
+    "AC": {
+     "I": 83.783,
+     "h": -0.6128,
+     "w": -0.0175,
+     "c": -0.0657,
+     "anom": {
+      "Fin": 6.1384,
+      "Post": -1.8911,
+      "Def": 5.1116,
+      "Play": 2.7297,
+      "Shoot": -1.7829,
+      "Agility": 12.1407
+     }
+    },
+    "STR": {
+     "I": 80.7977,
+     "h": 0.7914,
+     "w": 0.0251,
+     "c": 0.183,
+     "anom": {
+      "Fin": 9.7734,
+      "Post": 9.9246,
+      "Def": 5.4819,
+      "Play": -3.9976,
+      "Shoot": -1.7975,
+      "Agility": -6.0988
+     }
+    },
+    "VE": {
+     "I": 95.7577,
+     "h": -1.2658,
+     "w": 0.0118,
+     "c": -0.1163,
+     "anom": {
+      "Fin": 0.0,
+      "Post": -0.2228,
+      "Def": 5.8394,
+      "Play": 0.1086,
+      "Shoot": -1.7576,
+      "Agility": 7.7933
+     }
+    },
+    "STA": {
+     "I": 99.5099,
+     "h": 0.0,
+     "w": 0.0,
+     "c": 0.0,
+     "anom": {
+      "Fin": 0.0,
+      "Post": 0.0,
+      "Def": 0.0,
+      "Play": 0.0,
+      "Shoot": 0.0,
+      "Agility": 0.0
+     }
+    }
+   },
+   "estimated": {
+    "CS": [
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "DL": [
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "DD": [
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "SD": [
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "MR": [
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "TP": [
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "MS": [
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "FT": [
+     "I",
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Play",
+     "anom:Post",
+     "anom:Shoot",
+     "c",
+     "h",
+     "w"
+    ],
+    "PA": [
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "BH": [
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "PC": [
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "ID": [
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "PD": [
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "LS": [
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "ST": [
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "BL": [
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "RB": [
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "SP": [
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "AC": [
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "STR": [
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "VE": [
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "STA": [
+     "I",
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Play",
+     "anom:Post",
+     "anom:Shoot",
+     "c",
+     "h",
+     "w"
+    ]
+   },
+   "seenAnomalies": [
+    "None",
+    "Play",
+    "Shoot"
+   ],
+   "seenBodies": [
+    "Built",
+    "Bulky",
+    "Narrow",
+    "Normal",
+    "Slim"
+   ],
+   "heights": [
+    77,
+    78,
+    79,
+    80,
+    81,
+    82
+   ],
+   "weights": [
+    200,
+    205,
+    210,
+    215,
+    220,
+    225,
+    230,
+    235,
+    240,
+    245,
+    250,
+    255,
+    260
+   ]
+  },
+  "PF": {
+   "href": 81,
+   "wref": 260,
+   "base": [
+    97,
+    99,
+    97,
+    87,
+    83,
+    82,
+    74,
+    99,
+    92,
+    72,
+    86,
+    91,
+    88,
+    77,
+    72,
+    87,
+    99,
+    81,
+    80,
+    85,
+    88,
+    99
+   ],
+   "coef": {
+    "CS": {
+     "I": 97.3173,
+     "h": 1.7356,
+     "w": 0.6404,
+     "c": 0.0233,
+     "anom": {
+      "Fin": 0.0,
+      "Post": 5.0408,
+      "Def": -8.6481,
+      "Play": -4.9287,
+      "Shoot": -7.2871,
+      "Agility": -2.4025
+     }
+    },
+    "DL": {
+     "I": 98.6051,
+     "h": 1.8219,
+     "w": 0.7472,
+     "c": 0.0256,
+     "anom": {
+      "Fin": 0.0,
+      "Post": 4.9226,
+      "Def": -8.3744,
+      "Play": -4.9941,
+      "Shoot": -7.6531,
+      "Agility": -2.5757
+     }
+    },
+    "DD": {
+     "I": 97.1321,
+     "h": 1.5569,
+     "w": 0.947,
+     "c": -0.0402,
+     "anom": {
+      "Fin": 19.7957,
+      "Post": 0.0372,
+      "Def": -7.4246,
+      "Play": -4.8562,
+      "Shoot": -12.1821,
+      "Agility": -2.6905
+     }
+    },
+    "SD": {
+     "I": 87.1432,
+     "h": 2.6803,
+     "w": 0.8891,
+     "c": 0.0008,
+     "anom": {
+      "Fin": 13.7556,
+      "Post": -0.0611,
+      "Def": -4.7966,
+      "Play": -4.8996,
+      "Shoot": -12.187,
+      "Agility": -2.7879
+     }
+    },
+    "MR": {
+     "I": 83.1788,
+     "h": -1.2135,
+     "w": -1.1143,
+     "c": -0.0011,
+     "anom": {
+      "Fin": -18.4776,
+      "Post": 8.8493,
+      "Def": -22.6702,
+      "Play": -5.0313,
+      "Shoot": 11.4754,
+      "Agility": -5.0512
+     }
+    },
+    "TP": {
+     "I": 81.9446,
+     "h": -1.2745,
+     "w": -1.2001,
+     "c": -0.0009,
+     "anom": {
+      "Fin": -18.6151,
+      "Post": -11.6286,
+      "Def": -22.7928,
+      "Play": -5.191,
+      "Shoot": 12.2318,
+      "Agility": -4.7718
+     }
+    },
+    "MS": {
+     "I": 74.2794,
+     "h": -0.9469,
+     "w": -0.799,
+     "c": -0.0534,
+     "anom": {
+      "Fin": -18.5434,
+      "Post": -4.9651,
+      "Def": -18.9986,
+      "Play": -4.9371,
+      "Shoot": 11.3735,
+      "Agility": -5.0533
+     }
+    },
+    "FT": {
+     "I": 99.0,
+     "h": 0.0,
+     "w": 0.0,
+     "c": 0.0,
+     "anom": {
+      "Fin": 0.0,
+      "Post": 0.0,
+      "Def": 0.0,
+      "Play": 0.0,
+      "Shoot": 0.0,
+      "Agility": 0.0
+     }
+    },
+    "PA": {
+     "I": 91.6819,
+     "h": -0.2875,
+     "w": 0.0996,
+     "c": -0.0227,
+     "anom": {
+      "Fin": -18.4944,
+      "Post": -11.3582,
+      "Def": -12.5363,
+      "Play": 12.1174,
+      "Shoot": -3.8393,
+      "Agility": -4.8477
+     }
+    },
+    "BH": {
+     "I": 71.8077,
+     "h": -1.2157,
+     "w": -1.7287,
+     "c": -0.0969,
+     "anom": {
+      "Fin": -6.055,
+      "Post": -11.2563,
+      "Def": -16.0732,
+      "Play": 12.1596,
+      "Shoot": -2.7536,
+      "Agility": -3.5776
+     }
+    },
+    "PC": {
+     "I": 85.9894,
+     "h": 0.7075,
+     "w": 0.6545,
+     "c": 0.1616,
+     "anom": {
+      "Fin": 0.0617,
+      "Post": 19.8685,
+      "Def": -2.4889,
+      "Play": 2.4552,
+      "Shoot": 0.1527,
+      "Agility": -9.3002
+     }
+    },
+    "ID": {
+     "I": 91.4435,
+     "h": 2.2836,
+     "w": 0.7151,
+     "c": 0.1124,
+     "anom": {
+      "Fin": -0.2104,
+      "Post": -0.035,
+      "Def": 14.6869,
+      "Play": -5.0407,
+      "Shoot": -7.4861,
+      "Agility": 0.255
+     }
+    },
+    "PD": {
+     "I": 87.971,
+     "h": 2.2369,
+     "w": 0.6242,
+     "c": 0.0031,
+     "anom": {
+      "Fin": 0.1601,
+      "Post": 0.1596,
+      "Def": 19.2545,
+      "Play": -4.6426,
+      "Shoot": -7.4006,
+      "Agility": 0.197
+     }
+    },
+    "LS": {
+     "I": 76.7076,
+     "h": -1.2256,
+     "w": -0.051,
+     "c": -0.1723,
+     "anom": {
+      "Fin": -0.018,
+      "Post": 0.0108,
+      "Def": 9.5657,
+      "Play": -4.8697,
+      "Shoot": -7.4505,
+      "Agility": 9.8205
+     }
+    },
+    "ST": {
+     "I": 72.082,
+     "h": -2.3602,
+     "w": 2.8427,
+     "c": 0.0006,
+     "anom": {
+      "Fin": -0.2313,
+      "Post": 0.014,
+      "Def": 10.7158,
+      "Play": -4.8778,
+      "Shoot": -7.3955,
+      "Agility": -0.0367
+     }
+    },
+    "BL": {
+     "I": 87.0459,
+     "h": 3.6417,
+     "w": 0.9468,
+     "c": -0.0018,
+     "anom": {
+      "Fin": -0.1584,
+      "Post": -0.0638,
+      "Def": 10.0115,
+      "Play": -5.1672,
+      "Shoot": -7.3843,
+      "Agility": -0.0296
+     }
+    },
+    "RB": {
+     "I": 103.9316,
+     "h": 2.3226,
+     "w": 0.7764,
+     "c": 0.0543,
+     "anom": {
+      "Fin": -0.2547,
+      "Post": -0.0122,
+      "Def": 10.5192,
+      "Play": -3.6998,
+      "Shoot": -6.4333,
+      "Agility": 0.0
+     }
+    },
+    "SP": {
+     "I": 81.2609,
+     "h": -0.739,
+     "w": 0.0016,
+     "c": -0.064,
+     "anom": {
+      "Fin": 5.7555,
+      "Post": -2.2197,
+      "Def": 5.012,
+      "Play": 2.7699,
+      "Shoot": -0.8034,
+      "Agility": 12.259
+     }
+    },
+    "AC": {
+     "I": 79.9658,
+     "h": -0.7442,
+     "w": 0.0636,
+     "c": -0.0679,
+     "anom": {
+      "Fin": 6.1384,
+      "Post": -1.8911,
+      "Def": 5.1116,
+      "Play": 3.097,
+      "Shoot": -0.0199,
+      "Agility": 12.1407
+     }
+    },
+    "STR": {
+     "I": 84.8236,
+     "h": 0.4293,
+     "w": -0.0096,
+     "c": 0.1862,
+     "anom": {
+      "Fin": 9.7734,
+      "Post": 9.9246,
+      "Def": 5.4819,
+      "Play": -4.1163,
+      "Shoot": -2.0559,
+      "Agility": -6.0988
+     }
+    },
+    "VE": {
+     "I": 87.7534,
+     "h": -1.2056,
+     "w": 0.0069,
+     "c": -0.053,
+     "anom": {
+      "Fin": 0.0,
+      "Post": -0.2228,
+      "Def": 5.8394,
+      "Play": 0.0359,
+      "Shoot": -0.8551,
+      "Agility": 7.7933
+     }
+    },
+    "STA": {
+     "I": 99.5099,
+     "h": 0.0,
+     "w": 0.0,
+     "c": 0.0,
+     "anom": {
+      "Fin": 0.0,
+      "Post": 0.0,
+      "Def": 0.0,
+      "Play": 0.0,
+      "Shoot": 0.0,
+      "Agility": 0.0
+     }
+    }
+   },
+   "estimated": {
+    "CS": [
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "DL": [
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "DD": [
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "SD": [
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "MR": [
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "TP": [
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "MS": [
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "FT": [
+     "I",
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Play",
+     "anom:Post",
+     "anom:Shoot",
+     "c",
+     "h",
+     "w"
+    ],
+    "PA": [
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Play",
+     "anom:Post"
+    ],
+    "BH": [
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "PC": [
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "ID": [
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "PD": [
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "LS": [
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "ST": [
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "BL": [
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "RB": [
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Play",
+     "anom:Post",
+     "c",
+     "h",
+     "w"
+    ],
+    "SP": [
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "AC": [
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "STR": [
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "VE": [
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "STA": [
+     "I",
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Play",
+     "anom:Post",
+     "anom:Shoot",
+     "c",
+     "h",
+     "w"
+    ]
+   },
+   "seenAnomalies": [
+    "None",
+    "Play",
+    "Shoot"
+   ],
+   "seenBodies": [
+    "Built",
+    "Bulky",
+    "Narrow",
+    "Normal",
+    "Slim"
+   ],
+   "heights": [
+    79,
+    80,
+    81,
+    82,
+    83,
+    84
+   ],
+   "weights": [
+    230,
+    235,
+    240,
+    245,
+    250,
+    255,
+    260,
+    265,
+    270,
+    275,
+    280,
+    285,
+    290
+   ]
+  },
+  "C": {
+   "href": 84,
+   "wref": 275,
+   "base": [
+    99,
+    97,
+    88,
+    99,
+    82,
+    81,
+    71,
+    99,
+    91,
+    61,
+    99,
+    95,
+    82,
+    71,
+    66,
+    96,
+    99,
+    69,
+    69,
+    95,
+    71,
+    99
+   ],
+   "coef": {
+    "CS": {
+     "I": 99.4027,
+     "h": 1.4364,
+     "w": 0.7167,
+     "c": 0.0233,
+     "anom": {
+      "Fin": 0.0,
+      "Post": 5.0408,
+      "Def": -8.6481,
+      "Play": -5.3653,
+      "Shoot": -7.3276,
+      "Agility": -2.4025
+     }
+    },
+    "DL": {
+     "I": 96.9492,
+     "h": 1.4105,
+     "w": 0.7477,
+     "c": 0.0169,
+     "anom": {
+      "Fin": 0.0,
+      "Post": 4.9226,
+      "Def": -8.3744,
+      "Play": -4.6295,
+      "Shoot": -7.2743,
+      "Agility": -2.5757
+     }
+    },
+    "DD": {
+     "I": 87.6494,
+     "h": -1.2279,
+     "w": 1.0465,
+     "c": -0.1059,
+     "anom": {
+      "Fin": 19.7957,
+      "Post": 0.0372,
+      "Def": -7.4246,
+      "Play": -7.7728,
+      "Shoot": -11.2213,
+      "Agility": -2.6905
+     }
+    },
+    "SD": {
+     "I": 98.7881,
+     "h": 2.7831,
+     "w": 0.8184,
+     "c": 0.0055,
+     "anom": {
+      "Fin": 13.7556,
+      "Post": -0.0611,
+      "Def": -4.7966,
+      "Play": -10.0528,
+      "Shoot": -11.5535,
+      "Agility": -2.7879
+     }
+    },
+    "MR": {
+     "I": 82.2041,
+     "h": -1.2757,
+     "w": -1.1807,
+     "c": 0.0033,
+     "anom": {
+      "Fin": -18.4776,
+      "Post": 8.8493,
+      "Def": -22.6702,
+      "Play": -6.257,
+      "Shoot": 10.0147,
+      "Agility": -5.0512
+     }
+    },
+    "TP": {
+     "I": 80.988,
+     "h": -1.2937,
+     "w": -1.1744,
+     "c": 0.0004,
+     "anom": {
+      "Fin": -18.6151,
+      "Post": -11.6286,
+      "Def": -22.7928,
+      "Play": -6.2327,
+      "Shoot": 9.7271,
+      "Agility": -4.7718
+     }
+    },
+    "MS": {
+     "I": 71.3554,
+     "h": -1.1426,
+     "w": -0.7011,
+     "c": -0.0693,
+     "anom": {
+      "Fin": -18.5434,
+      "Post": -4.9651,
+      "Def": -18.9986,
+      "Play": -6.3006,
+      "Shoot": 11.305,
+      "Agility": -5.0533
+     }
+    },
+    "FT": {
+     "I": 99.0,
+     "h": 0.0,
+     "w": 0.0,
+     "c": 0.0,
+     "anom": {
+      "Fin": 0.0,
+      "Post": 0.0,
+      "Def": 0.0,
+      "Play": 0.0,
+      "Shoot": 0.0,
+      "Agility": 0.0
+     }
+    },
+    "PA": {
+     "I": 91.3065,
+     "h": -0.1883,
+     "w": 0.007,
+     "c": -0.0134,
+     "anom": {
+      "Fin": -18.4944,
+      "Post": -11.3582,
+      "Def": -12.5363,
+      "Play": 12.1174,
+      "Shoot": -8.4081,
+      "Agility": -4.8477
+     }
+    },
+    "BH": {
+     "I": 61.3515,
+     "h": -2.4164,
+     "w": -1.7324,
+     "c": -0.1487,
+     "anom": {
+      "Fin": -6.055,
+      "Post": -11.2563,
+      "Def": -16.0732,
+      "Play": 18.5562,
+      "Shoot": -8.7092,
+      "Agility": -3.5776
+     }
+    },
+    "PC": {
+     "I": 99.3012,
+     "h": 0.5773,
+     "w": 0.6258,
+     "c": 0.1308,
+     "anom": {
+      "Fin": 0.0617,
+      "Post": 19.8685,
+      "Def": -2.4889,
+      "Play": -11.3,
+      "Shoot": -9.2802,
+      "Agility": -9.3002
+     }
+    },
+    "ID": {
+     "I": 94.745,
+     "h": 1.9267,
+     "w": 0.7092,
+     "c": 0.1073,
+     "anom": {
+      "Fin": -0.2104,
+      "Post": -0.035,
+      "Def": 14.6869,
+      "Play": -2.7447,
+      "Shoot": -7.3511,
+      "Agility": 0.255
+     }
+    },
+    "PD": {
+     "I": 81.8578,
+     "h": -1.3616,
+     "w": 0.602,
+     "c": 0.0096,
+     "anom": {
+      "Fin": 0.1601,
+      "Post": 0.1596,
+      "Def": 19.2545,
+      "Play": -2.6871,
+      "Shoot": -7.6393,
+      "Agility": 0.197
+     }
+    },
+    "LS": {
+     "I": 70.7109,
+     "h": -1.6636,
+     "w": -0.0127,
+     "c": -0.2173,
+     "anom": {
+      "Fin": -0.018,
+      "Post": 0.0108,
+      "Def": 9.5657,
+      "Play": -2.6152,
+      "Shoot": -7.1549,
+      "Agility": 9.8205
+     }
+    },
+    "ST": {
+     "I": 66.0581,
+     "h": -2.1465,
+     "w": 2.676,
+     "c": 0.0012,
+     "anom": {
+      "Fin": -0.2313,
+      "Post": 0.014,
+      "Def": 10.7158,
+      "Play": -5.0464,
+      "Shoot": -7.2278,
+      "Agility": -0.0367
+     }
+    },
+    "BL": {
+     "I": 96.0296,
+     "h": 2.6089,
+     "w": 1.0203,
+     "c": -0.001,
+     "anom": {
+      "Fin": -0.1584,
+      "Post": -0.0638,
+      "Def": 10.0115,
+      "Play": -7.1229,
+      "Shoot": -12.1228,
+      "Agility": -0.0296
+     }
+    },
+    "RB": {
+     "I": 101.0522,
+     "h": 0.0,
+     "w": 0.0,
+     "c": 0.0,
+     "anom": {
+      "Fin": 0.0,
+      "Post": 0.0,
+      "Def": 0.0,
+      "Play": 0.0,
+      "Shoot": 0.0,
+      "Agility": 0.0
+     }
+    },
+    "SP": {
+     "I": 68.9719,
+     "h": -0.9401,
+     "w": -0.0723,
+     "c": -0.1849,
+     "anom": {
+      "Fin": 5.7555,
+      "Post": -2.2197,
+      "Def": 5.012,
+      "Play": 7.1654,
+      "Shoot": -6.7429,
+      "Agility": 12.259
+     }
+    },
+    "AC": {
+     "I": 68.824,
+     "h": -0.5113,
+     "w": 0.002,
+     "c": -0.1635,
+     "anom": {
+      "Fin": 6.1384,
+      "Post": -1.8911,
+      "Def": 5.1116,
+      "Play": 6.9292,
+      "Shoot": -6.8752,
+      "Agility": 12.1407
+     }
+    },
+    "STR": {
+     "I": 95.0994,
+     "h": 0.3766,
+     "w": -0.0265,
+     "c": 0.3142,
+     "anom": {
+      "Fin": 9.7734,
+      "Post": 9.9246,
+      "Def": 5.4819,
+      "Play": -4.099,
+      "Shoot": -7.863,
+      "Agility": -6.0988
+     }
+    },
+    "VE": {
+     "I": 70.972,
+     "h": -0.9873,
+     "w": -0.0573,
+     "c": -0.0406,
+     "anom": {
+      "Fin": 0.0,
+      "Post": -0.2228,
+      "Def": 5.8394,
+      "Play": 0.1744,
+      "Shoot": -0.9291,
+      "Agility": 7.7933
+     }
+    },
+    "STA": {
+     "I": 98.9999,
+     "h": -0.01,
+     "w": -0.0207,
+     "c": -0.058,
+     "anom": {
+      "Fin": 0.0,
+      "Post": 0.0,
+      "Def": 0.0,
+      "Play": 2.6014,
+      "Shoot": 2.029,
+      "Agility": 2.5392
+     }
+    }
+   },
+   "estimated": {
+    "CS": [
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "DL": [
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "DD": [
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "SD": [
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "MR": [
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "TP": [
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "MS": [
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "FT": [
+     "I",
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Play",
+     "anom:Post",
+     "anom:Shoot",
+     "c",
+     "h",
+     "w"
+    ],
+    "PA": [
+     "anom:Def",
+     "anom:Fin",
+     "anom:Play",
+     "anom:Post"
+    ],
+    "BH": [
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "PC": [
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "ID": [
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "PD": [
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "LS": [
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "ST": [
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "BL": [
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "RB": [
+     "I",
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Play",
+     "anom:Post",
+     "anom:Shoot",
+     "c",
+     "h",
+     "w"
+    ],
+    "SP": [
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "AC": [
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "STR": [
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "VE": [
+     "anom:Def",
+     "anom:Fin",
+     "anom:Post"
+    ],
+    "STA": [
+     "anom:Agility",
+     "anom:Def",
+     "anom:Fin",
+     "anom:Play",
+     "anom:Post"
+    ]
+   },
+   "seenAnomalies": [
+    "Agility",
+    "None",
+    "Play",
+    "Shoot"
+   ],
+   "seenBodies": [
+    "Built",
+    "Bulky",
+    "Narrow",
+    "Normal",
+    "Slim"
+   ],
+   "heights": [
+    81,
+    82,
+    83,
+    84,
+    85,
+    86,
+    87
+   ],
+   "weights": [
+    245,
+    250,
+    255,
+    260,
+    265,
+    270,
+    275,
+    280,
+    285,
+    290,
+    295,
+    300,
+    305,
+    310
+   ]
+  }
+ },
+ "bodies": [
+  "Slim",
+  "Built",
+  "Narrow",
+  "Bulky"
+ ],
+ "anomalies": [
+  "Fin",
+  "Post",
+  "Def",
+  "Play",
+  "Shoot",
+  "Agility"
+ ],
+ "bodyOffsets": {
+  "CS": {
+   "Slim": -0.1168,
+   "Built": -0.0085,
+   "Narrow": -0.058,
+   "Bulky": -0.0444
+  },
+  "DL": {
+   "Slim": -0.2137,
+   "Built": -0.1792,
+   "Narrow": -0.1352,
+   "Bulky": -0.1401
+  },
+  "DD": {
+   "Slim": 0.1249,
+   "Built": 0.0868,
+   "Narrow": 0.0717,
+   "Bulky": 1.2419
+  },
+  "SD": {
+   "Slim": -0.038,
+   "Built": -0.0271,
+   "Narrow": -0.0722,
+   "Bulky": 3.5917
+  },
+  "MR": {
+   "Slim": -0.0806,
+   "Built": 0.0667,
+   "Narrow": 0.0016,
+   "Bulky": 0.0439
+  },
+  "TP": {
+   "Slim": 0.0028,
+   "Built": -0.01,
+   "Narrow": 0.0735,
+   "Bulky": 0.0766
+  },
+  "MS": {
+   "Slim": -0.0274,
+   "Built": -0.0407,
+   "Narrow": -0.0216,
+   "Bulky": 0.2113
+  },
+  "FT": {
+   "Slim": 0.0,
+   "Built": 0.0,
+   "Narrow": 0.0,
+   "Bulky": 0.0
+  },
+  "PA": {
+   "Slim": 0.0414,
+   "Built": 0.0183,
+   "Narrow": -0.0054,
+   "Bulky": 0.0984
+  },
+  "BH": {
+   "Slim": 0.0378,
+   "Built": -0.1054,
+   "Narrow": -0.0012,
+   "Bulky": -0.0996
+  },
+  "PC": {
+   "Slim": -1.6702,
+   "Built": 0.7064,
+   "Narrow": -4.311,
+   "Bulky": 5.3847
+  },
+  "ID": {
+   "Slim": -3.1617,
+   "Built": 1.2636,
+   "Narrow": -5.0015,
+   "Bulky": 3.5931
+  },
+  "PD": {
+   "Slim": 0.1133,
+   "Built": -2.0926,
+   "Narrow": -2.5248,
+   "Bulky": -3.0463
+  },
+  "LS": {
+   "Slim": 5.0287,
+   "Built": 0.3074,
+   "Narrow": 9.8964,
+   "Bulky": 0.0346
+  },
+  "ST": {
+   "Slim": -0.09,
+   "Built": -0.0168,
+   "Narrow": 0.0175,
+   "Bulky": -0.0987
+  },
+  "BL": {
+   "Slim": -0.0407,
+   "Built": 0.0081,
+   "Narrow": -2.3393,
+   "Bulky": -0.0854
+  },
+  "RB": {
+   "Slim": -1.2955,
+   "Built": 0.0127,
+   "Narrow": -2.5422,
+   "Bulky": 2.6271
+  },
+  "SP": {
+   "Slim": 2.8632,
+   "Built": 0.5627,
+   "Narrow": 4.9156,
+   "Bulky": -3.9919
+  },
+  "AC": {
+   "Slim": 2.1021,
+   "Built": 0.3781,
+   "Narrow": 3.9481,
+   "Bulky": -5.0184
+  },
+  "STR": {
+   "Slim": -3.4439,
+   "Built": 2.922,
+   "Narrow": -5.8813,
+   "Bulky": 7.0018
+  },
+  "VE": {
+   "Slim": 0.8906,
+   "Built": -0.8334,
+   "Narrow": 0.9233,
+   "Bulky": -2.0133
+  },
+  "STA": {
+   "Slim": 0.0,
+   "Built": 0.0,
+   "Narrow": 0.0,
+   "Bulky": -0.9999
+  }
+ },
+ "notes": {}
+};
+const NAMES={CS:"Close Shot",DL:"Driving Layup",DD:"Driving Dunk",SD:"Standing Dunk",MR:"Mid-Range Shot",TP:"Three-Point Shot",MS:"Moving Shot",FT:"Free Throw",PA:"Pass Accuracy",BH:"Ball Handle",PC:"Post Control",ID:"Interior Defense",PD:"Perimeter Defense",LS:"Lateral Speed",ST:"Steal",BL:"Block",RB:"Rebound",SP:"Speed",AC:"Acceleration",STR:"Strength",VE:"Vertical",STA:"Stamina"};
+const GROUPS=[["Finishing","fin",["CS","DL","DD","SD"]],["Shooting","sho",["MR","TP","MS","FT"]],["Playmaking","ply",["PA","BH","PC"]],["Defense","def",["ID","PD","LS","ST","BL","RB"]],["Physicals","phy",["SP","AC","STR","VE","STA"]]];
+const POSN={PG:"Point Guard",SG:"Shooting Guard",SF:"Small Forward",PF:"Power Forward",C:"Center"};
+const ANOM=[["None","None"],["Fin","Finishing"],["Post","Post-Scoring"],["Def","Defense"],["Play","Playmaking"],["Shoot","Shooting"],["Agility","Agility"]];
+const BODY=["Normal","Slim","Built","Narrow","Bulky"];
+// selectable ranges; "obs" = what the recordings actually covered
+// weight limits are the in-game min/max (recorded for every position)
+// height and weight limits read live from the game for every position
+const RANGE={PG:{h:[69,78],w:[160,205],oh:[69,78],ow:[160,205]},SG:{h:[75,80],w:[180,225],oh:[75,80],ow:[180,225]},
+  SF:{h:[77,82],w:[200,260],oh:[77,82],ow:[200,260]},PF:{h:[79,84],w:[230,290],oh:[79,84],ow:[230,290]},C:{h:[81,87],w:[245,310],oh:[81,87],ow:[245,310]}};
+// anomalies each position can pick, in the game's order
+const ANOM_BY_POS={PG:["None","Post","Def","Fin"],SG:["None","Post","Def","Fin"],SF:["None","Shoot","Play"],PF:["None","Shoot","Play"],C:["None","Shoot","Play","Agility"]};
+const ft=i=>`${Math.floor(i/12)}'${i%12}`;
+let EDGE=0.15; // how close to .5 counts as a rounding edge
+
+function compute(b){
+  const P=MODEL.positions[b.pos], v={}, est={}, alt={};
+  for(const k of MODEL.attrs){
+    const c=P.coef[k]; let x=c.I+c.h*(b.H-P.href)+c.w*(b.WS-b.H-2)+c.c*(b.W-P.wref);
+    if(b.B!=="Normal") x+=MODEL.bodyOffsets[k][b.B]||0;
+    if(b.A!=="None") x+=c.anom[b.A]||0;
+    const cap=(b.pos==="PG"&&k==="ID"&&b.A==="Def")?70:99;
+    v[k]=Math.max(25,Math.min(cap,Math.floor(x+0.5)));
+    // rounding edge: the formula lands within 0.15 of .5, so the game may show the neighbouring value
+    const fr=x-Math.floor(x);
+    if(v[k]<cap&&v[k]>25&&Math.abs(fr-0.5)<EDGE) alt[k]=fr<0.5?v[k]+1:v[k]-1;
+    else if(v[k]===cap&&x<cap+EDGE-0.5) alt[k]=cap-1;
+    const e=P.estimated[k]||[]; const R=RANGE[b.pos];
+    est[k]=e.includes("I")?false:(e.includes("h")&&b.H!==P.href)||(e.includes("w")&&b.WS-b.H!==2)||(e.includes("c")&&b.W!==P.wref)
+      ||(b.A!=="None"&&e.includes("anom:"+b.A))||b.H<R.oh[0]||b.H>R.oh[1]||b.W<R.ow[0]||b.W>R.ow[1]
+      ||(b.B!=="Normal"&&!P.seenBodies.includes(b.B))||(b.A!=="None"&&!P.seenAnomalies.includes(b.A));
+  }
+  return {v,est,alt};
+}
+
+// ---- badges (from the linked sheet) ----
+const CAT={fin:["Finishing","fin"],sho:["Shooting","sho"],ply:["Playmaking","ply"],def:["Defense / Rebounding","def"],pst:["Post-Scoring","pst"],phy:["Physical","phy"]};
+const RAW=[
+["Aerial Assault","fin",["59 Close Shot & 67 Layup","64 Close Shot & 75 Layup","72 Close Shot & 80 Layup","77 Close Shot & 86 Layup","83 Close Shot & 94 Layup"]],
+["Alley-Oop Finisher","fin",["64 Dunk & 60 Vertical","71 Dunk & 67 Vertical","76 Dunk & 75 Vertical","84 Dunk & 82 Vertical","97 Dunk & 88 Vertical"]],
+["Gymnast","fin",["75 Layup & 62 Vertical","81 Layup & 68 Vertical","86 Layup & 74 Vertical","91 Layup & 79 Vertical","95 Layup & 85 Vertical"]],
+["High Flyer","fin",["65 Dunk & 60 Vertical","74 Dunk & 71 Vertical","83 Dunk & 82 Vertical","89 Dunk & 88 Vertical","95 Dunk & 95 Vertical"]],
+["Perfect Lays","fin",["70 Layup / 60 Layup & 70 Close Shot","76 Layup / 66 Layup & 76 Close Shot","81 Layup / 72 Layup & 81 Close Shot","86 Layup / 79 Layup & 87 Close Shot","96 Layup / 85 Layup & 96 Close Shot"]],
+["Putback Finisher","fin",["70 Dunk & 70 Vertical","78 Dunk & 75 Vertical","84 Dunk & 80 Vertical","89 Dunk & 88 Vertical","96 Dunk & 92 Vertical"]],
+["Relentless Finisher","fin",["60 Layup & 74 Stamina","67 Layup & 78 Stamina","75 Layup & 85 Stamina","84 Layup & 91 Stamina","93 Layup & 95 Stamina"]],
+["Traffic Finisher","fin",["67 Dunk & 66 Vertical / 67 Dunk & 62 Strength","76 Dunk & 73 Vertical / 76 Dunk & 73 Strength","81 Dunk & 85 Vertical / 81 Dunk & 76 Strength","87 Dunk & 89 Vertical / 87 Dunk & 83 Strength","95 Dunk & 94 Vertical / 95 Dunk & 94 Strength"]],
+["Catch & Pop","sho",["63 Three / 68 Mid-Range","71 Three / 76 Mid-Range","83 Three / 80 Mid-Range","91 Three & 86 Mid-Range","96 Three & 90 Mid-Range"]],
+["Corner Spot-Up","sho",["68 Three","75 Three","83 Three","88 Three","93 Three"]],
+["Fade Artist","sho",["65 Moving Shot & 75 Mid-Range","70 Moving Shot & 80 Mid-Range","75 Moving Shot & 85 Mid-Range","81 Moving Shot & 91 Mid-Range","86 Moving Shot & 97 Mid-Range"]],
+["Formless Shooter","sho",["66 Mid-Range & 63 Stamina","74 Mid-Range & 69 Stamina","85 Mid-Range & 75 Stamina","93 Mid-Range & 87 Stamina","98 Mid-Range & 94 Stamina"]],
+["Limitless Shooter","sho",["76 Three","82 Three","88 Three","93 Three","96 Three"]],
+["Mid-Range Maestro","sho",["67 Mid-Range","74 Mid-Range","81 Mid-Range","87 Mid-Range","95 Mid-Range"]],
+["Relentless Shooter","sho",["64 Three & 65 Stamina","73 Three & 70 Stamina","81 Three & 78 Stamina","90 Three & 86 Stamina","96 Three & 92 Stamina"]],
+["Tunnel Vision","sho",["66 Three","75 Three","83 Three","90 Three","97 Three"]],
+["Quick Draw","sho",["68 Mid-Range","75 Mid-Range","84 Mid-Range","91 Mid-Range","96 Mid-Range"]],
+["Whistle Wizard","sho",["70 Free Throw","80 Free Throw","85 Free Throw","90 Free Throw","97 Free Throw"]],
+["Dimer","ply",["63 Pass Accuracy","71 Pass Accuracy","81 Pass Accuracy","88 Pass Accuracy","96 Pass Accuracy"]],
+["Dish Out","ply",["68 Pass Accuracy","77 Pass Accuracy","86 Pass Accuracy","91 Pass Accuracy","98 Pass Accuracy"]],
+["Glove","ply",["65 Ball Handle / 65 Post Control & 65 Strength","73 Ball Handle / 72 Post Control & 71 Strength","82 Ball Handle / 82 Post Control & 81 Strength","90 Ball Handle / 90 Post Control & 90 Strength","96 Ball Handle"]],
+["Quick Handles","ply",["67 Ball Handle & 59 Speed","73 Ball Handle & 65 Speed","81 Ball Handle & 70 Speed","88 Ball Handle & 83 Speed","96 Ball Handle & 88 Speed"]],
+["Quick Pass","ply",["63 Pass Accuracy","71 Pass Accuracy","81 Pass Accuracy","88 Pass Accuracy","96 Pass Accuracy"]],
+["Soul Snatcher","ply",["67 Ball Handle","74 Ball Handle","81 Ball Handle","89 Ball Handle","96 Ball Handle"]],
+["Space Maker","ply",["58 Ball Handle & 66 Speed","64 Ball Handle & 73 Speed","70 Ball Handle & 80 Speed","81 Ball Handle & 87 Speed","88 Ball Handle & 96 Speed"]],
+["Tireless Handles","ply",["64 Ball Handle & 59 Stamina","70 Ball Handle & 67 Stamina","79 Ball Handle & 75 Stamina","88 Ball Handle & 82 Stamina","96 Ball Handle & 90 Stamina"]],
+["Intimidator","def",["64 Perimeter Defense","73 Perimeter Defense","80 Perimeter Defense","90 Perimeter Defense","97 Perimeter Defense"]],
+["Locks","def",["64 Perimeter Defense & 62 Lateral Quickness","72 Perimeter Defense & 68 Lateral Quickness","81 Perimeter Defense & 74 Lateral Quickness","89 Perimeter Defense & 81 Lateral Quickness","95 Perimeter Defense & 85 Lateral Quickness"]],
+["Lurker","def",["65 Block & 60 Vertical & 57 Speed","75 Block & 73 Vertical & 67 Speed","83 Block & 79 Vertical & 73 Speed","89 Block & 85 Vertical & 78 Speed","94 Block & 92 Vertical & 82 Speed"]],
+["Navigator","def",["63 Lateral Quickness & 32 Strength","72 Lateral Quickness & 43 Strength","83 Lateral Quickness & 55 Strength","87 Lateral Quickness & 66 Strength","91 Lateral Quickness & 70 Strength"]],
+["Rebound Chaser","def",["59 Rebound","71 Rebound","82 Rebound","90 Rebound","97 Rebound"]],
+["Rim Saver","def",["60 Block & 64 Interior Defense","70 Block & 72 Interior Defense","81 Block & 78 Interior Defense","89 Block & 84 Interior Defense","96 Block & 88 Interior Defense"]],
+["Thief","def",["61 Steal","72 Steal","84 Steal","90 Steal","97 Steal"]],
+["Tough Ankles","def",["64 Perimeter Defense & 62 Stamina","69 Perimeter Defense & 67 Stamina","76 Perimeter Defense & 74 Stamina","81 Perimeter Defense & 78 Stamina","93 Perimeter Defense & 84 Stamina"]],
+["Trampoline","def",["58 Block & 61 Vertical","64 Block & 68 Vertical","74 Block & 76 Vertical","85 Block & 81 Vertical","95 Block & 91 Vertical"]],
+["Deep Post Bag","pst",["67 Post Control","77 Post Control","83 Post Control","88 Post Control","94 Post Control"]],
+["Paint King","pst",["65 Post Control & 70 Strength","75 Post Control & 80 Strength","85 Post Control & 86 Strength","90 Post Control & 91 Strength","95 Post Control & 95 Strength"]],
+["Post Footwork","pst",["68 Post Control & 46 Speed","78 Post Control & 50 Speed","83 Post Control & 53 Speed","88 Post Control & 56 Speed","94 Post Control & 65 Speed"]],
+["Post Lockdown","pst",["62 Strength & 65 Interior Defense","69 Strength & 70 Interior Defense","76 Strength & 75 Interior Defense","88 Strength & 81 Interior Defense","95 Strength & 88 Interior Defense"]],
+["Fast Breaker","phy",["65 Speed","77 Speed","84 Speed","91 Speed","95 Speed"]],
+["Hustler","phy",["65 Speed & 70 Stamina","72 Speed & 75 Stamina","80 Speed & 82 Stamina","88 Speed & 87 Stamina","94 Speed & 92 Stamina"]],
+["Iron Screens","phy",["63 Strength","71 Strength","80 Strength","88 Strength","95 Strength"]]];
+const TOK={"Close Shot":"CS","Layup":"DL","Dunk":"DUNK","Vertical":"VE","Three":"TP","Mid-Range":"MR","Moving Shot":"MS","Stamina":"STA","Free Throw":"FT","Pass Accuracy":"PA","Ball Handle":"BH","Post Control":"PC","Strength":"STR","Speed":"SP","Perimeter Defense":"PD","Lateral Quickness":"LS","Interior Defense":"ID","Block":"BL","Rebound":"RB","Steal":"ST"};
+const BADGES=RAW.map(([name,cat,tiers])=>({name,cat,tiers:tiers.map(s=>s.split(" / ").map(alt=>alt.split(" & ").map(t=>{const m=t.trim().match(/^(\d+)\s+(.+)$/);return [TOK[m[2]],+m[1]];})))}));
+let dunkMode="DD";
+const get=(v,k)=>k==="DUNK"?(dunkMode==="DD"?v.DD:dunkMode==="SD"?v.SD:Math.max(v.DD,v.SD)):v[k];
+const altShort=(v,alt)=>alt.reduce((s,[k,n])=>s+Math.max(0,n-get(v,k)),0);
+const tierShort=(v,b,t)=>Math.min(...b.tiers[t-1].map(a=>altShort(v,a)));
+function tierOf(v,b){let t=0;for(let i=1;i<=5;i++){if(tierShort(v,b,i)===0)t=i;else break;}return t;}
+function nextNeed(v,b,t){
+  if(t>=5)return "Maxed out";
+  const alts=b.tiers[t];let best=null,bs=1e9;
+  for(const a of alts){const s=altShort(v,a);if(s<bs){bs=s;best=a;}}
+  const parts=best.filter(([k,n])=>get(v,k)<n).map(([k,n])=>`+${n-get(v,k)} ${k==="DUNK"?"Dunk":NAMES[k]}`);
+  return `Tier ${t+1} needs ${parts.join(", ")}`;
+}
+const lbl=k=>k==="DUNK"?"Dunk":NAMES[k];
+
+// ---- state ----
+const store={get(k,d){try{const s=localStorage.getItem("ppc-"+k);return s?JSON.parse(s):d}catch(e){return d}},set(k,v){try{localStorage.setItem("ppc-"+k,JSON.stringify(v))}catch(e){}}};
+let build=store.get("build",{pos:"PG",H:74,WS:76,W:180,A:"None",B:"Normal"});
+let picks=store.get("picks",{"Limitless Shooter":3,"Quick Handles":2});
+dunkMode=store.get("dunk","DD");
+
+function clampBuild(){
+  const R=RANGE[build.pos];
+  build.H=Math.min(R.h[1],Math.max(R.h[0],build.H));
+  build.WS=Math.min(build.H+5,Math.max(build.H,build.WS));
+  build.W=Math.min(R.w[1],Math.max(R.w[0],Math.round(build.W/5)*5));
+}
+
+// ---- calculator UI ----
+const STEPS=[
+  ["Position",()=>POSN[build.pos],d=>{const ks=Object.keys(POSN);const i=(ks.indexOf(build.pos)+d+ks.length)%ks.length;const old=build.pos;build.pos=ks[i];
+     const Po=MODEL.positions[old],Pn=MODEL.positions[build.pos];build.H=Pn.href+(build.H-Po.href);build.W=Pn.wref+(build.W-Po.wref);build.WS=build.H+(build.WS-build.H);
+     if(!ANOM_BY_POS[build.pos].includes(build.A))build.A="None";},null],
+  ["Height",()=>ft(build.H),d=>{build.H+=d;build.WS+=d;},()=>[build.H>RANGE[build.pos].h[0],build.H<RANGE[build.pos].h[1]]],
+  ["Wing Span",()=>ft(build.WS),d=>{build.WS+=d;},()=>[build.WS>build.H,build.WS<build.H+5]],
+  ["Weight",()=>build.W,d=>{build.W+=5*d;},()=>[build.W>RANGE[build.pos].w[0],build.W<RANGE[build.pos].w[1]]],
+  ["Anomaly",()=>ANOM.find(a=>a[0]===build.A)[1],d=>{const L=ANOM_BY_POS[build.pos];const i=Math.max(0,L.indexOf(build.A));build.A=L[(i+d+L.length)%L.length];},null],
+  ["Body Type",()=>build.B,d=>{const i=BODY.indexOf(build.B);build.B=BODY[(i+d+BODY.length)%BODY.length];},null]];
+function renderControls(){
+  const el=document.getElementById("controls");el.innerHTML="";
+  STEPS.forEach(([name,show,step,lim],i)=>{
+    const row=document.createElement("div");row.className="row";
+    const [canL,canR]=lim?lim():[true,true];
+    row.innerHTML=`<span class="label">${name}</span><div class="step"><button id="s${i}l" aria-label="Previous ${name}" ${canL?"":"disabled"}>‹</button><output id="s${i}v">${show()}</output><button id="s${i}r" aria-label="Next ${name}" ${canR?"":"disabled"}>›</button></div>`;
+    el.appendChild(row);
+    row.querySelector(`#s${i}l`).onclick=()=>{step(-1);clampBuild();update();};
+    row.querySelector(`#s${i}r`).onclick=()=>{step(1);clampBuild();update();};
+  });
+  const R=RANGE[build.pos],P=MODEL.positions[build.pos],w=[];
+  if(build.H<R.oh[0]||build.H>R.oh[1])w.push(`Height outside the recorded ${ft(R.oh[0])}–${ft(R.oh[1])}`);
+  if(build.W<R.ow[0]||build.W>R.ow[1])w.push(`Weight outside the recorded ${R.ow[0]}–${R.ow[1]} lb`);
+  if(build.A!=="None"&&!P.seenAnomalies.includes(build.A))w.push(`${ANOM.find(a=>a[0]===build.A)[1]} was never recorded for ${POSN[build.pos]}; values are borrowed from other positions`);
+  if(build.B!=="Normal"&&!P.seenBodies.includes(build.B))w.push(`${build.B} was never recorded for ${POSN[build.pos]}`);
+  const h=document.createElement("div");h.className="hint";h.textContent=w.join(". ");el.appendChild(h);
+}
+function renderBoard(){
+  const res=compute(build),{v,est,alt}=res,P=MODEL.positions[build.pos];const el=document.getElementById("board");el.innerHTML="";
+  GROUPS.forEach(([title,cat,keys])=>{
+    const g=document.createElement("div");g.className="grp";g.style.setProperty("--cat",`var(--${cat})`);
+    g.innerHTML=`<h3 style="color:var(--${cat})">${title}</h3>`+keys.map(k=>{
+      const i=MODEL.attrs.indexOf(k),d=v[k]-P.base[i];
+      const pm=alt[k]!==undefined?`<span class="pm" title="On a rounding edge: the game may show ${alt[k]}">±1</span>`:"";
+      return `<div class="attr"><span><span class="${est[k]?"est":""}" title="${est[k]?"Estimated: outside the recorded data":""}">${NAMES[k]}</span>${pm}</span><span class="d ${d>0?"up":d<0?"dn":"zero"}">${d>0?"+"+d:d<0?"−"+(-d):""}</span><span class="v">${v[k]}</span>
+      <span class="bar"><i style="width:${(v[k]-25)/74*100}%;background:var(--${cat})"></i></span></div>`;}).join("");
+    el.appendChild(g);
+  });
+  return res;
+}
+function renderBadges(res){
+  const v=res.v, va={...res.v,...res.alt};
+  const all=document.getElementById("showAll").checked;const el=document.getElementById("badgeList");el.innerHTML="";
+  for(const c of Object.keys(CAT)){
+    const rows=BADGES.filter(b=>b.cat===c).map(b=>[b,tierOf(v,b)]).filter(([b,t])=>all||t>0);
+    if(!rows.length)continue;
+    const box=document.createElement("div");box.className="grp bcat";box.style.setProperty("--cat",`var(--${c})`);
+    box.innerHTML=`<h3 style="color:var(--${c})">${CAT[c][0]}</h3>`+rows.map(([b,t])=>{
+      const ta=tierOf(va,b), bl=ta!==t?`<span class="pm" title="Depends on a ±1 value">${ta>t?"might be "+ta:"might be "+ta}</span>`:"";
+      return `<div class="brow ${t?"":"off"}"><span class="nm">${b.name}${bl}</span><span class="pips" aria-label="Tier ${t} of 5">${[1,2,3,4,5].map(i=>`<i class="${i<=t?"on":""}"></i>`).join("")}</span><span class="nx">${nextNeed(v,b,t)}</span></div>`;}).join("");
+    el.appendChild(box);
+  }
+  if(!el.children.length)el.innerHTML=`<p class="status">No badges at this build. Tick "Show locked badges" to see what each one needs.</p>`;
+}
+function update(){store.set("build",build);renderControls();renderBadges(renderBoard());}
+// (finder) a pick counts as borderline when it is met only because of a ±1 value
+document.getElementById("showAll").onchange=update;
+
+// ---- finder UI ----
+const fPos=document.getElementById("fPos");
+Object.entries(POSN).forEach(([k,n])=>fPos.insertAdjacentHTML("beforeend",`<option value="${k}">${n}</option>`));
+const dm=document.getElementById("dunkMode");dm.value=dunkMode;dm.onchange=()=>{dunkMode=dm.value;store.set("dunk",dunkMode);update();};
+function renderPicker(){
+  const el=document.getElementById("picker");el.innerHTML="";
+  for(const c of Object.keys(CAT)){
+    const box=document.createElement("div");box.className="grp bcat";box.style.setProperty("--cat",`var(--${c})`);
+    box.innerHTML=`<h3 style="color:var(--${c})">${CAT[c][0]}</h3>`;
+    BADGES.filter(b=>b.cat===c).forEach(b=>{
+      const r=document.createElement("div");r.className="brow";const sel=picks[b.name]||0;
+      r.innerHTML=`<span class="nm">${b.name}</span><span class="tierpick">${[1,2,3,4,5].map(i=>`<button aria-label="${b.name} tier ${i}" title="${b.tiers[i-1].map(a=>a.map(([k,n])=>n+" "+lbl(k)).join(" & ")).join("  or  ")}" class="${i===sel?"sel":i<sel?"in":""}">${i}</button>`).join("")}</span>`;
+      r.querySelectorAll("button").forEach((btn,i)=>btn.onclick=()=>{if(picks[b.name]===i+1)delete picks[b.name];else picks[b.name]=i+1;store.set("picks",picks);renderPicker();});
+      box.appendChild(r);
+    });
+    el.appendChild(box);
+  }
+  const n=Object.keys(picks).length;
+  document.getElementById("pickSummary").textContent=n?`${n} badge${n>1?"s":""} picked: `+Object.entries(picks).map(([k,t])=>`${k} ${t}+`).join(", "):"No badges picked yet.";
+}
+document.getElementById("clear").onclick=()=>{picks={};store.set("picks",picks);renderPicker();};
+// ---- attribute limits: [attr, op, value]; op = min | max | hi | lo ----
+let lims=store.get("lims",[]);
+const OPS=[["min","At least"],["max","At most"],["hi","Highest"],["lo","Lowest"]];
+function renderLims(){
+  const el=document.getElementById("lims");el.innerHTML="";
+  lims.forEach((l,i)=>{
+    const r=document.createElement("div");r.className="lim";
+    r.innerHTML=`<select aria-label="Attribute">${MODEL.attrs.map(k=>`<option value="${k}" ${k===l[0]?"selected":""}>${NAMES[k]}</option>`).join("")}</select>
+      <select aria-label="Limit type">${OPS.map(([o,n])=>`<option value="${o}" ${o===l[1]?"selected":""}>${n}</option>`).join("")}</select>
+      <input type="number" min="25" max="99" aria-label="Value" value="${l[2]}" ${l[1]==="hi"||l[1]==="lo"?"disabled":""}>
+      <button class="x" aria-label="Remove limit">×</button>`;
+    const [sa,so]=r.querySelectorAll("select"),inp=r.querySelector("input");
+    sa.onchange=()=>{l[0]=sa.value;saveLims();};
+    so.onchange=()=>{l[1]=so.value;saveLims();renderLims();};
+    inp.oninput=()=>{const n=parseInt(inp.value,10);if(!isNaN(n)){l[2]=Math.max(25,Math.min(99,n));saveLims();}};
+    r.querySelector(".x").onclick=()=>{lims.splice(i,1);saveLims();renderLims();};
+    el.appendChild(r);
+  });
+}
+function saveLims(){store.set("lims",lims);}
+document.getElementById("addLim").onclick=()=>{lims.push(["SP","min",80]);saveLims();renderLims();};
+const limPass=v=>lims.every(([k,o,n])=>o==="min"?v[k]>=n:o==="max"?v[k]<=n:true);
+const limScore=v=>lims.reduce((s,[k,o])=>s+(o==="hi"?v[k]:o==="lo"?-v[k]:0),0);
+const limBord=(v,alt)=>lims.filter(([k,o,n])=>alt[k]!==undefined&&(o==="min"?alt[k]<n:o==="max"?alt[k]>n:false)).length;
+function* allBuilds(pos,wide){
+  const R=RANGE[pos],P=MODEL.positions[pos];
+  const hs=wide?R.h:R.oh, ws=wide?R.w:R.ow;
+  const bodies=BODY, anoms=ANOM_BY_POS[pos];
+  for(let H=hs[0];H<=hs[1];H++)for(let WS=H;WS<=H+5;WS++)for(let W=ws[0];W<=ws[1];W+=5)for(const B of bodies)for(const A of anoms)yield {pos,H,WS,W,A,B};
+}
+function runFinder(){
+  const want=Object.entries(picks).map(([n,t])=>[BADGES.find(b=>b.name===n),t]);
+  const out=document.getElementById("results"),title=document.getElementById("resTitle");
+  if(!want.length&&!lims.length){out.innerHTML=`<p class="status">Pick at least one badge tier or add an attribute limit, then press Find builds.</p>`;title.textContent="Results";return;}
+  const wide=false, poss=fPos.value==="ALL"?Object.keys(POSN):[fPos.value];
+  const res=[];let n=0,nLim=0;
+  for(const pos of poss)for(const b of allBuilds(pos,wide)){
+    n++;const {v,est,alt}=compute(b);
+    if(!limPass(v))continue;
+    nLim++;const va={...v,...alt};
+    let short=0,got=0,bord=limBord(v,alt);for(const [bd,t] of want){const s=tierShort(v,bd,t);short+=s;got+=tierOf(v,bd);if(s===0&&tierShort(va,bd,t)>0)bord++;}
+    let extra=0;for(const bd of BADGES)extra+=tierOf(v,bd);
+    res.push({b,v,va,alt,short,got,extra,bord,ls:limScore(v),estN:Object.values(est).filter(Boolean).length});
+  }
+  res.sort((a,b)=>a.short-b.short||b.ls-a.ls||a.bord-b.bord||b.got-a.got||b.extra-a.extra||a.estN-b.estN);
+  const ok=res.filter(r=>r.short===0);
+  const show=(ok.length?ok:res).slice(0,15);
+  const hard=lims.some(l=>l[1]==="min"||l[1]==="max");
+  const limTxt=hard?` ${nLim.toLocaleString()} of ${n.toLocaleString()} builds pass your attribute limits.`:"";
+  title.textContent=!nLim?`No build passes your attribute limits (${n.toLocaleString()} checked). Loosen a limit.`
+    :!want.length?`${limTxt||n.toLocaleString()+" builds checked."} Best 15`
+    :ok.length?`${ok.length.toLocaleString()} of ${(hard?nLim:n).toLocaleString()} builds${hard?" within your limits":""} reach every pick. Best 15`
+    :`No build${hard?" within your limits":""} reaches every pick (${n.toLocaleString()} checked). Closest 15`;
+  out.innerHTML="";
+  show.forEach(r=>{
+    const d=document.createElement("div");d.className="res";
+    const chips=want.map(([bd,t])=>{const have=tierOf(r.v,bd),ha=tierOf(r.va,bd);const borderline=have>=t&&ha<t;
+      return `<span class="chip ${have>=t?"":"miss"}" style="--cat:var(--${bd.cat})">${bd.name} ${have}${have>=t?"":" (need "+t+")"}${borderline?" · borderline":""}</span>`;}).join("")
+      +[...new Set(lims.map(l=>l[0]))].map(k=>`<span class="chip att">${NAMES[k]} ${r.v[k]}${r.alt[k]!==undefined?" ±1":""}</span>`).join("");
+    const others=BADGES.filter(bd=>!picks[bd.name]&&tierOf(r.v,bd)>0).length;
+    d.innerHTML=`<div style="min-width:0"><div class="b">${POSN[r.b.pos]} · ${ft(r.b.H)} · WS ${ft(r.b.WS)} · ${r.b.W} lb · ${ANOM.find(a=>a[0]===r.b.A)[1]} · ${r.b.B}</div>
+      <div class="chips">${chips}</div><div class="status" style="margin-top:4px">${r.short?`Short by ${r.short} attribute points in total. `:""}Also unlocks ${others} other badge${others===1?"":"s"}.${r.estN?` ${r.estN} values estimated.`:""}</div></div>
+      <button class="btn ghost">Open</button>`;
+    d.querySelector("button").onclick=()=>{build={...r.b};update();selectTab("calc");window.scrollTo({top:0,behavior:"smooth"});};
+    out.appendChild(d);
+  });
+}
+document.getElementById("run").onclick=runFinder;
+function selectTab(t){
+  document.getElementById("tab-calc").setAttribute("aria-selected",t==="calc");document.getElementById("tab-find").setAttribute("aria-selected",t==="find");
+  document.getElementById("view-calc").hidden=t!=="calc";document.getElementById("view-find").hidden=t!=="find";
+}
+document.getElementById("tab-calc").onclick=()=>selectTab("calc");
+document.getElementById("tab-find").onclick=()=>{selectTab("find");};
+clampBuild();update();renderPicker();renderLims();runFinder();
+</script>
