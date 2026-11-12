@@ -29,7 +29,6 @@ body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:15px
 .wrap{max-width:1180px;margin:0 auto;display:grid;gap:18px}
 header{display:flex;flex-wrap:wrap;align-items:end;justify-content:space-between;gap:12px}
 h1{font-family:var(--display);font-weight:700;font-size:clamp(28px,4vw,40px);letter-spacing:.14em;text-transform:uppercase;margin:0;line-height:1}
-.sub{color:var(--muted);margin:6px 0 0;max-width:62ch}
 .tabs{display:flex;gap:4px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:4px}
 .tabs button{font:600 15px var(--display);letter-spacing:.08em;text-transform:uppercase;border:0;background:transparent;color:var(--muted);padding:8px 16px;border-radius:7px;cursor:pointer}
 .tabs button[aria-selected="true"]{background:var(--accent);color:var(--accent-ink)}
@@ -85,8 +84,6 @@ select{font:500 15px var(--body);padding:7px 10px;border-radius:8px;border:1px s
 .chip{font-size:12px;padding:2px 8px;border-radius:999px;border:1px solid var(--cat);color:var(--fg);white-space:nowrap}
 .chip.miss{border-style:dashed;color:var(--muted)}
 .status{font-size:14px;color:var(--muted)}
-.notice{border-left:4px solid var(--warn);padding:12px 16px;background:var(--panel2);border-radius:8px}
-.notice p{margin:4px 0}
 .results-stale{border-color:var(--warn)}
 #searchState,#filterState{margin:0 0 8px;color:var(--warn)}
 #searchSummary{margin:0 0 12px;overflow-wrap:anywhere}
@@ -107,18 +104,12 @@ select{font:500 15px var(--body);padding:7px 10px;border-radius:8px;border:1px s
   <header>
     <div>
       <h1>Player Profile Calculator</h1>
-      <p class="sub">Predicted maximum caps for each physical profile. Find profiles with potential eligibility for your chosen badge tiers.</p>
     </div>
     <div class="tabs" role="tablist" aria-label="Builder tools">
       <button role="tab" id="tab-calc" aria-selected="true" aria-controls="view-calc" tabindex="0">Calculator</button>
       <button role="tab" id="tab-find" aria-selected="false" aria-controls="view-find" tabindex="-1">Badge Finder</button>
     </div>
   </header>
-
-  <aside class="notice" aria-label="Prediction limits">
-    <p><strong>Predicted maximum caps, not an attribute allocation.</strong> These values do not establish which ratings you can reach together at 99 OVR. Confirm your allocation in the game creator.</p>
-    <p>All caps are model predictions, including values without a ±1 flag. Badge names and thresholds are community-reported and unverified in the current game. Potential eligibility does not mean badges are earned or equipped.</p>
-  </aside>
 
   <section id="view-calc" class="grid" role="tabpanel" aria-labelledby="tab-calc" tabindex="0">
     <div class="card ctl" id="controls"></div>
