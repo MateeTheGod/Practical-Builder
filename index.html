@@ -97,6 +97,24 @@ select{font:500 15px var(--body);padding:7px 10px;border-radius:8px;border:1px s
 .lim .x{height:34px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--muted);font-size:18px;cursor:pointer}
 .lims{display:grid;gap:6px}
 .chip.att{border-color:var(--muted)}
+.plan-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.plan-head h2{margin:0;font:700 24px var(--display);letter-spacing:.06em}
+.plan-side{display:grid;gap:14px}
+.plan-side p{margin:0}
+.plan-picks{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:12px}
+.plan-pick{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
+.plan-pick select{max-width:120px;min-height:40px}
+.plan-pick small{grid-column:1/-1;color:var(--muted)}
+.plan-floor{display:grid;grid-template-columns:minmax(0,1fr) 64px 36px;align-items:center;gap:6px}
+.plan-floor input{width:100%;padding:7px;border:1px solid var(--line);border-radius:6px;background:var(--panel2);color:var(--fg);font:inherit}
+.plan-table-wrap{overflow:auto}
+.plan-table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums;font-size:14px}
+.plan-table th,.plan-table td{text-align:left;padding:8px;border-bottom:1px solid var(--line);vertical-align:top}
+.plan-table td:nth-child(2){font-weight:700;color:var(--accent)}
+.plan-table .status{font-size:12px}
+.plan-error{color:var(--warn)}
+#planOutput{margin-top:18px}
+@media(max-width:480px){.tabs{flex-wrap:wrap}.tabs button{padding:8px 10px}.plan-table th,.plan-table td{padding:6px}.plan-table th:last-child,.plan-table td:last-child{min-width:130px}}
 @media (prefers-reduced-motion:no-preference){.bar i{transition:width .25s ease}}
 </style>
 
@@ -107,6 +125,7 @@ select{font:500 15px var(--body);padding:7px 10px;border-radius:8px;border:1px s
     </div>
     <div class="tabs" role="tablist" aria-label="Builder tools">
       <button role="tab" id="tab-calc" aria-selected="true" aria-controls="view-calc" tabindex="0">Calculator</button>
+      <button role="tab" id="tab-plan" aria-selected="false" aria-controls="view-plan" tabindex="-1">Optimizer</button>
       <button role="tab" id="tab-find" aria-selected="false" aria-controls="view-find" tabindex="-1">Badge Finder</button>
     </div>
   </header>
@@ -129,9 +148,35 @@ select{font:500 15px var(--body);padding:7px 10px;border-radius:8px;border:1px s
           <div class="label">Potential badge eligibility at these caps</div>
           <label class="status"><input type="checkbox" id="showAll"> Show locked badges</label>
         </div>
+        <div class="opts" style="margin-bottom:12px"><button class="btn" id="openPlan">Optimize this profile</button></div>
         <div class="badges" id="badgeList"></div>
       </div>
     </div>
+  </section>
+
+  <section id="view-plan" role="tabpanel" aria-labelledby="tab-plan" tabindex="0" hidden>
+    <div class="plan-head"><h2>Badge threshold optimizer</h2><button class="btn ghost" id="editProfile">Edit physical profile</button></div>
+    <p class="status" id="planProfile"></p>
+    <div class="grid">
+      <div class="card plan-side">
+        <p>Choose your badge targets. The plan finds the smallest total rating increase from 25 that meets them together.</p>
+        <div class="row"><label for="planDunk" class="label">Dunk in badge rules means</label><select id="planDunk"><option value="DD">Driving Dunk</option><option value="SD">Standing Dunk</option><option value="max">Whichever is higher</option></select></div>
+        <label class="status"><input type="checkbox" id="planSafe" checked> Use the lower cap where ±1 is flagged</label>
+        <div class="opts"><button class="btn ghost" id="planImport">Use Finder badge picks</button><button class="btn ghost" id="planMax">Highest available tiers</button><button class="btn ghost" id="planClear">Clear targets</button></div>
+        <div class="label">Keep minimum ratings</div>
+        <p class="status">Untargeted ratings stay at 25. Keep minimums for gameplay needs such as Free Throw or Speed.</p>
+        <div class="row"><label for="planFloorAttr" class="label">Attribute</label><select id="planFloorAttr"></select><button class="btn ghost" id="planAddFloor">Add minimum</button></div>
+        <div id="planFloors" class="ctl"></div>
+        <p class="status" id="planStatus" role="status" aria-live="polite"></p>
+        <button class="btn" id="planJump" disabled>View attribute plan</button>
+        <p class="status">Threshold plan only. Game rating links, upgrade costs, 99 OVR feasibility, and badge thresholds still need in-game verification.</p>
+      </div>
+      <div class="card">
+        <div class="row" style="margin-bottom:12px"><label for="planFilter" class="label">Find a badge</label><input id="planFilter" type="search" placeholder="Badge name" style="font:inherit;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--panel2);color:var(--fg)"></div>
+        <div id="planTargets" class="plan-picks"></div><p class="status" id="planFilterEmpty" hidden>No matching badges.</p>
+      </div>
+    </div>
+    <div id="planOutput" class="card" tabindex="-1" hidden></div>
   </section>
 
   <section id="view-find" role="tabpanel" aria-labelledby="tab-find" tabindex="0" hidden>
@@ -2902,6 +2947,76 @@ const MODEL = {
  },
  "notes": {}
 };
+// Exact threshold planning. Rating totals are an objective, never game costs or OVR.
+const ThresholdPlanner = (() => {
+  function alternatives(rule, mode) {
+    let out = [{}];
+    for (const [key, value] of rule) {
+      const keys = key !== 'DUNK' ? [key] : mode === 'max' ? ['DD', 'SD'] : [mode];
+      out = out.flatMap(v => keys.map(k => ({ ...v, [k]: Math.max(v[k] || 25, value) })));
+    }
+    return out;
+  }
+
+  function solve({ attrs, caps, badges, targets = {}, floors = {}, dunkMode = 'DD' }) {
+    if (!['DD', 'SD', 'max'].includes(dunkMode)) throw new Error('Invalid dunk interpretation');
+    const base = Object.fromEntries(attrs.map(k => [k, floors[k] === undefined ? 25 : floors[k]]));
+    const errors = [];
+    for (const k of attrs) {
+      if (!Number.isInteger(caps[k]) || caps[k] < 25 || caps[k] > 99) throw new Error('Invalid cap: ' + k);
+      if (!Number.isInteger(base[k]) || base[k] < 25 || base[k] > 99) throw new Error('Invalid minimum: ' + k);
+      if (base[k] > caps[k]) errors.push({ type: 'floor', attr: k, needed: base[k], cap: caps[k] });
+    }
+    const fits = v => Object.entries(v).every(([k, n]) => attrs.includes(k) && n <= caps[k]);
+    const constraints = [];
+    // Include earlier tiers too, matching the calculator's tierOf() prefix semantics.
+    for (const [name, tier] of Object.entries(targets)) {
+      if (!tier) continue;
+      const badge = badges.find(b => b.name === name);
+      if (!badge || !Number.isInteger(tier) || tier < 1 || tier > badge.tiers.length) throw new Error('Invalid badge target: ' + name);
+      for (let i = 0; i < tier; i++) {
+        const paths = badge.tiers[i].flatMap(rule => alternatives(rule, dunkMode));
+        const options = paths.filter(fits);
+        if (!options.length) {
+          errors.push({ type: 'badge', name, tier: i + 1, paths });
+          break;
+        }
+        constraints.push({ name, options });
+      }
+    }
+    if (errors.length) return { ok: false, errors };
+
+    const cost = v => attrs.reduce((sum, k) => sum + v[k] - 25, 0);
+    const dominates = (a, b) => attrs.every(k => a[k] <= b[k]);
+    let frontier = [base];
+    // Combining alternatives jointly avoids the greedy error of paying twice for shared stats.
+    for (const { options } of constraints.sort((a, b) => a.options.length - b.options.length)) {
+      const seen = new Map();
+      for (const v of frontier) for (const option of options) {
+        const merged = { ...v };
+        for (const [k, n] of Object.entries(option)) merged[k] = Math.max(merged[k], n);
+        seen.set(attrs.map(k => merged[k]).join(','), merged);
+      }
+      const next = [];
+      for (const v of [...seen.values()].sort((a, b) => cost(a) - cost(b))) {
+        if (!next.some(other => dominates(other, v))) next.push(v);
+      }
+      frontier = next;
+    }
+    const ratings = frontier.reduce((best, v) => cost(v) < cost(best) ? v : best);
+    const support = Object.fromEntries(attrs.map(k => [k, []]));
+    for (const { name, options } of constraints) {
+      const path = options.find(option => Object.entries(option).every(([k, n]) => ratings[k] >= n));
+      for (const [k, n] of Object.entries(path)) {
+        if (n === ratings[k] && !support[k].includes(name)) support[k].push(name);
+      }
+    }
+    return { ok: true, ratings, support, ratingIncreases: cost(ratings) };
+  }
+  return { solve };
+})();
+if (typeof module !== 'undefined' && module.exports) module.exports = ThresholdPlanner;
+
 const NAMES={CS:"Close Shot",DL:"Driving Layup",DD:"Driving Dunk",SD:"Standing Dunk",MR:"Mid-Range Shot",TP:"Three-Point Shot",MS:"Moving Shot",FT:"Free Throw",PA:"Pass Accuracy",BH:"Ball Handle",PC:"Post Control",ID:"Interior Defense",PD:"Perimeter Defense",LS:"Lateral Speed",ST:"Steal",BL:"Block",RB:"Rebound",SP:"Speed",AC:"Acceleration",STR:"Strength",VE:"Vertical",STA:"Stamina"};
 const GROUPS=[["Finishing","fin",["CS","DL","DD","SD"]],["Shooting","sho",["MR","TP","MS","FT"]],["Playmaking","ply",["PA","BH","PC"]],["Defense","def",["ID","PD","LS","ST","BL","RB"]],["Physicals","phy",["SP","AC","STR","VE","STA"]]];
 const POSN={PG:"Point Guard",SG:"Shooting Guard",SF:"Small Forward",PF:"Power Forward",C:"Center"};
@@ -3067,7 +3182,7 @@ function renderBadges(res){
   }
   if(!el.children.length)el.innerHTML=`<p class="status">No badges at this build. Tick "Show locked badges" to see what each one needs.</p>`;
 }
-function update(){store.set("build",build);renderControls();renderBadges(renderBoard());}
+function update(){store.set("build",build);renderControls();renderBadges(renderBoard());refreshPlan();}
 // (finder) a pick counts as borderline when it is met only because of a ±1 value
 document.getElementById("showAll").onchange=update;
 
@@ -3182,7 +3297,7 @@ function runFinder(){
 }
 document.getElementById("run").onclick=runFinder;
 function selectTab(t){
-  for(const name of ["calc","find"]){
+  for(const name of ["calc","plan","find"]){
     const active=t===name,tab=document.getElementById("tab-"+name);
     tab.setAttribute("aria-selected",String(active));tab.tabIndex=active?0:-1;
     document.getElementById("view-"+name).hidden=!active;
@@ -3190,12 +3305,139 @@ function selectTab(t){
 }
 document.getElementById("tab-calc").onclick=()=>selectTab("calc");
 document.getElementById("tab-find").onclick=()=>{selectTab("find");};
+document.getElementById("tab-plan").onclick=()=>selectTab("plan");
 document.querySelector(".tabs").addEventListener("keydown",event=>{
   const keys=["ArrowLeft","ArrowRight","Home","End"];
   if(!keys.includes(event.key))return;
   event.preventDefault();
-  const t=event.key==="Home"?"calc":event.key==="End"?"find":event.target.id==="tab-calc"?"find":"calc";
+  const tabs=["calc","plan","find"], index=tabs.indexOf(event.target.id.replace("tab-",""));
+  const t=event.key==="Home"?tabs[0]:event.key==="End"?tabs[2]:tabs[(index+(event.key==="ArrowRight"?1:2))%tabs.length];
   selectTab(t);document.getElementById("tab-"+t).focus();
+});
+
+// ---- fixed-profile threshold optimizer ----
+let planPicks=store.get("plan-picks",{}), planFloors=store.get("plan-floors",{});
+let planMode=store.get("plan-dunk",dunkMode), planSafe=store.get("plan-safe",true);
+if(!["DD","SD","max"].includes(planMode))planMode="DD";
+const planDunk=document.getElementById("planDunk");
+const planFloorAttr=document.getElementById("planFloorAttr");
+planFloorAttr.innerHTML=MODEL.attrs.map(k=>`<option value="${k}">${NAMES[k]}</option>`).join("");
+planFloorAttr.value="FT";
+function planTier(v,badge){
+  const value=k=>k!=="DUNK"?v[k]:planMode==="max"?Math.max(v.DD,v.SD):v[planMode];
+  let tier=0;
+  for(const rules of badge.tiers){if(!rules.some(path=>path.every(([k,n])=>value(k)>=n)))break;tier++;}
+  return tier;
+}
+function currentPlanCaps(){
+  const res=compute(build),caps={...res.v};
+  if(planSafe)for(const [k,n] of Object.entries(res.alt))caps[k]=Math.min(caps[k],n);
+  return {res,caps};
+}
+function savePlan(){
+  store.set("plan-picks",planPicks);store.set("plan-floors",planFloors);
+  store.set("plan-dunk",planMode);store.set("plan-safe",planSafe);
+}
+function renderPlanTargets(){
+  const {caps}=currentPlanCaps(),el=document.getElementById("planTargets");el.innerHTML="";
+  for(const [c,[name]] of Object.entries(CAT)){
+    const group=document.createElement("div");group.className="grp bcat";group.dataset.planCategory=c;
+    group.innerHTML=`<h3 style="color:var(--${c})">${name}</h3>`;
+    for(const [index,badge] of BADGES.entries()){
+      if(badge.cat!==c)continue;
+      const maximum=planTier(caps,badge),chosen=planPicks[badge.name]||0;
+      const row=document.createElement("div");row.className="plan-pick";row.dataset.badge=badge.name;
+      row.innerHTML=`<label for="plan-target-${index}">${badge.name}</label><select id="plan-target-${index}" data-badge="${badge.name}" aria-describedby="plan-note-${index}"><option value="0">No target</option>${[1,2,3,4,5].map(t=>`<option value="${t}" ${chosen===t?"selected":""} ${t>maximum&&chosen!==t?"disabled":""}>Tier ${t}${t>maximum?" (above cap)":""}</option>`).join("")}</select><small id="plan-note-${index}" data-plan-note="${index}">Cap allows tier ${maximum}.</small>`;
+      group.appendChild(row);
+    }
+    el.appendChild(group);
+  }
+  filterPlanBadges();
+}
+function filterPlanBadges(){
+  const query=document.getElementById("planFilter").value.trim().toLowerCase();let visible=0;
+  document.querySelectorAll("#planTargets .grp").forEach(group=>{
+    let count=0;group.querySelectorAll(".plan-pick").forEach(row=>{row.hidden=!row.dataset.badge.toLowerCase().includes(query);if(!row.hidden)count++;});
+    group.hidden=!count;visible+=count;
+  });
+  document.getElementById("planFilterEmpty").hidden=visible>0;
+}
+function renderPlanFloors(){
+  const el=document.getElementById("planFloors");el.innerHTML="";
+  for(const k of MODEL.attrs){
+    if(planFloors[k]===undefined)continue;
+    const row=document.createElement("div");row.className="plan-floor";
+    row.innerHTML=`<label for="plan-floor-${k}">${NAMES[k]}</label><input id="plan-floor-${k}" data-floor="${k}" type="number" min="25" max="99" step="1" value="${Number(planFloors[k])}" aria-label="Minimum ${NAMES[k]}"><button class="btn ghost" style="padding:7px" data-remove-floor="${k}" aria-label="Remove ${NAMES[k]} minimum">×</button>`;
+    el.appendChild(row);
+  }
+}
+function renderPlanResult(){
+  const output=document.getElementById("planOutput"),status=document.getElementById("planStatus");
+  const {res,caps}=currentPlanCaps(),count=Object.values(planPicks).filter(Boolean).length;
+  for(const [index,badge] of BADGES.entries()){
+    const note=document.querySelector(`[data-plan-note="${index}"]`);
+    if(note)note.textContent=`Cap allows tier ${planTier(caps,badge)}.`;
+  }
+  output.hidden=false;
+  document.getElementById("planJump").disabled=false;
+  if(!count&&!Object.keys(planFloors).length){status.textContent="Pick badge tiers below, or add a minimum rating.";output.hidden=true;document.getElementById("planJump").disabled=true;return;}
+  let plan;
+  try{plan=ThresholdPlanner.solve({attrs:MODEL.attrs,caps,badges:BADGES,targets:planPicks,floors:planFloors,dunkMode:planMode});}
+  catch(error){status.textContent="Check your targets and minimum ratings.";output.textContent=error.message;return;}
+  if(!plan.ok){
+    status.textContent="Some targets exceed this profile's caps. Lower a target or edit the physical profile.";
+    output.innerHTML='<h3>Targets that do not fit</h3>';
+    for(const error of plan.errors){
+      const item=document.createElement("p");item.className="plan-error";
+      item.textContent=error.type==="floor"?`${NAMES[error.attr]} minimum ${error.needed} exceeds cap ${error.cap}.`:`${error.name} tier ${error.tier}: `+error.paths.map(path=>Object.entries(path).filter(([k,n])=>n>caps[k]).map(([k,n])=>`${NAMES[k]} needs ${n}, cap ${caps[k]}`).join(" and ")).join("; or ");
+      output.appendChild(item);
+    }
+    return;
+  }
+  const badges=BADGES.map(b=>({badge:b,tier:planTier(plan.ratings,b)}));
+  const extra=badges.filter(({badge,tier})=>tier>0&&!planPicks[badge.name]).length;
+  status.textContent=`${count?`${count} badge target${count===1?"":"s"} met.`:"Minimum ratings met."} ${extra} additional badge${extra===1?" qualifies":"s qualify"} at these ratings.`;
+  output.innerHTML=`<div class="plan-head"><h2>Your threshold plan</h2><button class="btn ghost" id="copyPlan">Copy plan</button></div><p class="status">Smallest total increase: ${plan.ratingIncreases} rating points above 25. This is not an upgrade cost or OVR.</p><div class="plan-table-wrap"><table class="plan-table"><thead><tr><th scope="col">Attribute</th><th scope="col">Target</th><th scope="col">Cap</th><th scope="col">Kept for</th></tr></thead><tbody>${MODEL.attrs.map(k=>{
+    const reasons=[...plan.support[k]];
+    if(planFloors[k]!==undefined&&plan.ratings[k]===planFloors[k])reasons.unshift("Your minimum");
+    return `<tr><th scope="row">${NAMES[k]}</th><td>${plan.ratings[k]}</td><td>${caps[k]}${res.alt[k]!==undefined?' <span class="pm">±1</span>':""}</td><td class="status">${reasons.join(", ")||"No chosen threshold"}</td></tr>`;
+  }).join("")}</tbody></table></div><h3>Badge tiers at these ratings</h3><div class="chips">${badges.filter(({tier})=>tier>0).map(({badge,tier})=>`<span class="chip" style="--cat:var(--${badge.cat})">${badge.name} ${tier}${planPicks[badge.name]?" · target "+planPicks[badge.name]+"+":" · extra"}</span>`).join("")||'<span class="status">No badge thresholds met.</span>'}</div>`;
+  for(const [index,badge] of BADGES.entries()){
+    const note=document.querySelector(`[data-plan-note="${index}"]`);
+    if(note)note.textContent=`Plan tier ${planTier(plan.ratings,badge)} · cap allows tier ${planTier(caps,badge)}.`;
+  }
+  const text=["Threshold plan — "+document.getElementById("planProfile").textContent,`Dunk: ${planDunk.selectedOptions[0].textContent}; lower rounding-edge caps: ${planSafe?"yes":"no"}`,"",...MODEL.attrs.map(k=>`${NAMES[k]}: ${plan.ratings[k]} / cap ${caps[k]}`),"",...badges.filter(({tier})=>tier>0).map(({badge,tier})=>`${badge.name}: tier ${tier}${planPicks[badge.name]?" (target "+planPicks[badge.name]+"+)":" (extra)"}`),"","Thresholds only; rating links, costs, community badge rules and 99 OVR feasibility are unverified."].join("\n");
+  document.getElementById("copyPlan").onclick=async()=>{
+    try{await navigator.clipboard.writeText(text);status.textContent="Plan copied.";}
+    catch{const area=document.createElement("textarea");area.value=text;area.setAttribute("aria-label","Plan text to copy");area.style.cssText="width:100%;height:220px;margin-top:12px";output.appendChild(area);area.focus();area.select();status.textContent="Select and copy the plan text below.";}
+  };
+}
+function refreshPlan(){
+  document.getElementById("planProfile").textContent=`${POSN[build.pos]} · ${ft(build.H)} · WS ${ft(build.WS)} · ${build.W} lb · ${ANOM.find(a=>a[0]===build.A)[1]} · ${build.B}`;
+  planDunk.value=planMode;document.getElementById("planSafe").checked=planSafe;
+  renderPlanTargets();renderPlanFloors();renderPlanResult();
+}
+function openPlan(){selectTab("plan");document.getElementById("tab-plan").focus();window.scrollTo({top:0,behavior:"smooth"});}
+document.getElementById("openPlan").onclick=openPlan;
+document.getElementById("planJump").onclick=()=>{const output=document.getElementById("planOutput");output.focus({preventScroll:true});output.scrollIntoView({block:"start",behavior:"smooth"});};
+document.getElementById("editProfile").onclick=()=>{selectTab("calc");document.getElementById("tab-calc").focus();};
+document.getElementById("planTargets").addEventListener("change",event=>{
+  const name=event.target.dataset.badge;if(!name)return;
+  if(+event.target.value)planPicks[name]=+event.target.value;else delete planPicks[name];
+  savePlan();renderPlanResult();
+});
+document.getElementById("planFilter").oninput=filterPlanBadges;
+planDunk.onchange=()=>{planMode=planDunk.value;savePlan();refreshPlan();};
+document.getElementById("planSafe").onchange=event=>{planSafe=event.target.checked;savePlan();refreshPlan();};
+document.getElementById("planImport").onclick=()=>{planPicks={...picks};savePlan();refreshPlan();};
+document.getElementById("planMax").onclick=()=>{const {caps}=currentPlanCaps();planPicks=Object.fromEntries(BADGES.map(b=>[b.name,planTier(caps,b)]).filter(([,t])=>t));savePlan();refreshPlan();};
+document.getElementById("planClear").onclick=()=>{planPicks={};savePlan();refreshPlan();};
+document.getElementById("planAddFloor").onclick=()=>{const k=planFloorAttr.value;if(planFloors[k]===undefined)planFloors[k]=25;savePlan();renderPlanFloors();renderPlanResult();document.getElementById("plan-floor-"+k).focus();};
+document.getElementById("planFloors").addEventListener("input",event=>{
+  const k=event.target.dataset.floor;if(!k)return;planFloors[k]=event.target.value===""?null:Number(event.target.value);savePlan();renderPlanResult();
+});
+document.getElementById("planFloors").addEventListener("click",event=>{
+  const k=event.target.dataset.removeFloor;if(!k)return;delete planFloors[k];savePlan();renderPlanFloors();renderPlanResult();document.getElementById("planAddFloor").focus();
 });
 clampBuild();update();renderPicker();renderLims();runFinder();
 </script>

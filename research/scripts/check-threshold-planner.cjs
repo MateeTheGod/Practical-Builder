@@ -1,0 +1,71 @@
+// Run from any directory: node research/scripts/check-threshold-planner.cjs
+// Pure solver checks; this does not substitute for browser or live-game verification.
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+const { solve } = require('../../src/threshold-planner.js');
+const root = path.resolve(__dirname, '../..');
+const badge = (name, tiers) => ({ name, tiers });
+const small = (badges, targets, extra={}) => solve({attrs:['A','B'],caps:{A:99,B:99},badges,targets,...extra});
+const and = badge('Both', [[[['A',30],['B',35]]]]);
+assert.deepEqual(small([and],{Both:1}).ratings,{A:30,B:35});
+// Greedy would pick A30 for Either, then also raise B. The global optimum shares B31.
+const either = badge('Either', [[[['A',30]],[['B',31]]]]);
+const second = badge('Second', [[[['B',31]]]]);
+assert.deepEqual(small([either,second],{Either:1,Second:1}).ratings,{A:25,B:31});
+assert.deepEqual(small([either],{Either:1},{floors:{B:40}}).ratings,{A:25,B:40});
+assert.equal(small([and],{Both:1},{caps:{A:29,B:99}}).ok,false);
+assert.equal(small([],{},{floors:{A:80},caps:{A:79,B:99}}).errors[0].type,'floor');
+assert.throws(()=>small([],{},{floors:{A:null}}),/Invalid minimum/);
+assert.deepEqual(small([],{}).ratings,{A:25,B:25});
+// The existing tier evaluator requires every preceding tier, even for non-nested input.
+const prefix=badge('Prefix',[[[['A',30]]],[[['B',35]]]]);
+assert.deepEqual(small([prefix],{Prefix:2}).ratings,{A:30,B:35});
+const dunk=badge('Dunk',[[[['DUNK',80]]]]);
+for(const mode of ['DD','SD','max']){
+  const result=solve({attrs:['DD','SD'],caps:{DD:75,SD:85},badges:[dunk],targets:{Dunk:1},dunkMode:mode});
+  assert.equal(result.ok,mode!=='DD');
+  if(result.ok)assert.deepEqual(result.ratings,{DD:25,SD:80});
+}
+console.log('AND/OR choices, shared ratings, floors, blocked caps, prefix tiers and dunk modes: PASS');
+
+// Independent exhaustive enumeration of small problems verifies the optimal objective.
+let seed=42;
+const rand=n=>{seed=(seed*1664525+1013904223)>>>0;return seed%n};
+for(let test=0;test<80;test++){
+  const attrs=['A','B','C'],caps=Object.fromEntries(attrs.map(k=>[k,30]));
+  const badges=Array.from({length:3},(_,i)=>badge('Badge '+i,[[...Array.from({length:1+rand(2)},()=>Array.from({length:1+rand(2)},()=>[attrs[rand(3)],26+rand(5)]))]]));
+  const targets=Object.fromEntries(badges.map(b=>[b.name,1]));
+  const result=solve({attrs,caps,badges,targets});
+  let best=Infinity;
+  for(let A=25;A<=30;A++)for(let B=25;B<=30;B++)for(let C=25;C<=30;C++){
+    const v={A,B,C};
+    if(badges.every(b=>b.tiers[0].some(rule=>rule.every(([k,n])=>v[k]>=n))))best=Math.min(best,A+B+C-75);
+  }
+  assert.equal(result.ratingIncreases,best,'Exhaustive comparison '+test);
+}
+console.log('80 independent exhaustive comparisons: PASS');
+
+const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
+const source=html.match(/<script>([\s\S]*?)<\/script>/)[1];
+new vm.Script(source);
+const ctx=vm.createContext({});
+vm.runInContext(source.slice(0,source.indexOf('// ---- state ----'))+';globalThis.fixture={MODEL,BADGES,compute,tierOf};',ctx);
+const {MODEL,BADGES,compute,tierOf}=ctx.fixture;
+const profiles=Object.keys(MODEL.positions).map(pos=>{const p=MODEL.positions[pos];return {pos,H:p.href,WS:p.href+2,W:p.wref,A:'None',B:'Normal'}});
+profiles.push({pos:'SF',H:82,WS:87,W:205,A:'Shoot',B:'Narrow'});
+for(const profile of profiles){
+  const {v:caps}=compute(profile),targets=Object.fromEntries(BADGES.map(b=>[b.name,tierOf(caps,b)]).filter(([,t])=>t));
+  const start=performance.now();
+  const result=solve({attrs:Array.from(MODEL.attrs),caps,badges:BADGES,targets});
+  assert.equal(result.ok,true);
+  for(const [name,t] of Object.entries(targets))assert.ok(tierOf(result.ratings,BADGES.find(b=>b.name===name))>=t);
+  for(const k of MODEL.attrs)assert.ok(result.ratings[k]>=25&&result.ratings[k]<=caps[k]);
+  console.log(`${profile.pos} ${profile.H}: all available targets jointly met within caps (${Math.round(performance.now()-start)} ms)`);
+}
+const template=fs.readFileSync(path.join(root,'src/template.html'),'utf8');
+const model=fs.readFileSync(path.join(root,'src/model.json'),'utf8').trim();
+const planner=fs.readFileSync(path.join(root,'src/threshold-planner.js'),'utf8');
+assert.equal(html,template.replace('/*MODEL*/',model).replace('/*PLANNER*/',planner));
+console.log('Real badge dataset, screenshot profile, built-script syntax and generated file parity: PASS');

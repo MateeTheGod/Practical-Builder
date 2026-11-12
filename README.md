@@ -10,10 +10,13 @@ Open `index.html` in any browser. It's a single file with nothing to install. To
 - **±1 flag:** marks values that sit on a rounding edge, where the game may show one higher or lower.
 - **Badge Finder:** searches every legal build (about 45,000) for the badge tiers you pick.
 - **Attribute limits:** in the Badge Finder, add "at least N", "at most N", "highest" or "lowest" for any attribute.
-- **Separate tools:** Calculator and Badge Finder each have their own panel. Switch tabs with Left/Right, Home or End; Tab moves into the selected panel.
+- **Threshold Optimizer:** after selecting a physical profile, click **Optimize this profile**. Choose badge tiers, keep any gameplay minimum ratings (for example Free Throw), and view the smallest total rating increase that meets the targets. AND/OR rules and shared attribute requirements are solved jointly. Finder badge picks can be imported. The plan includes all 22 ratings, the requirements keeping them there, extra badge eligibility, a lower-cap rounding option and a copy action. Unreachable targets are reported explicitly. Targets and minimums stay saved in the browser.
+- **Separate tools:** Calculator, Optimizer and Badge Finder each have their own panel. Switch tabs with Left/Right, Home or End; Tab moves into the selected panel.
 - **Search freshness:** results retain a summary of the requirements used. Changing position, dunk interpretation, badge picks or attribute limits marks results outdated and disables Open until you search again or restore those requirements. Attribute limits apply to predicted caps, not allocated ratings.
 
 ## The formula
+
+The optimizer minimizes the sum of rating increases from 25 under the selected cap predictions and community badge rules. It does not model the game's rating links, actual upgrade costs, available allocation or OVR. Ratings without a target or user minimum stay at 25; this is a threshold worksheet, not a complete gameplay build. No shared 500-point budget is assumed. Run `node research/scripts/check-threshold-planner.cjs` for solver checks, exhaustive small-case comparisons and actual badge/profile cases.
 
 ```
 FINAL = min(cap, round(base + h·(height − ref height) + w·(wingspan − height − 2)
