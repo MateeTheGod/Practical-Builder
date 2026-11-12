@@ -19,6 +19,13 @@ assert.equal(small([and],{Both:1},{caps:{A:29,B:99}}).ok,false);
 assert.equal(small([],{},{floors:{A:80},caps:{A:79,B:99}}).errors[0].type,'floor');
 assert.throws(()=>small([],{},{floors:{A:null}}),/Invalid minimum/);
 assert.deepEqual(small([],{}).ratings,{A:25,B:25});
+assert.equal(small([and],{Both:1},{ceilings:{A:29}}).ok,false);
+assert.deepEqual(small([either],{Either:1},{ceilings:{A:29}}).ratings,{A:25,B:31});
+assert.equal(small([],{},{floors:{A:70},ceilings:{A:69}}).errors[0].type,'ceiling');
+assert.throws(()=>small([],{},{ceilings:{A:null}}),/Invalid maximum/);
+assert.throws(()=>small([],{},{ceilings:{A:100}}),/Invalid maximum/);
+assert.throws(()=>small([],{},{ceilings:{A:70.5}}),/Invalid maximum/);
+assert.deepEqual(small([],{},{floors:{A:70},ceilings:{A:70}}).ratings,{A:70,B:25});
 // The existing tier evaluator requires every preceding tier, even for non-nested input.
 const prefix=badge('Prefix',[[[['A',30]]],[[['B',35]]]]);
 assert.deepEqual(small([prefix],{Prefix:2}).ratings,{A:30,B:35});
@@ -64,6 +71,12 @@ for(const A of [99])for(const B of [89,90,93,96,99])for(const C of [89,90,93,96,
 }
 assert.equal(scoreHigh(improved.ratings),bestScore);
 assert.equal(maximize({...costInput,targets:{A:4,B:4,C:4,D:4}}).errors[0].type,'budget');
+const limited=maximize({...costInput,ceilings:{B:89,C:93,D:25}});
+assert.equal(limited.ok,true);assert.equal(limited.ratings.A,99);
+assert.ok(limited.ratings.B<=89);assert.ok(limited.ratings.C<=93);assert.equal(limited.ratings.D,25);
+const maximumOnly=maximize({...costInput,targets:{},ceilings:{A:25,B:25,C:25,D:25}});
+assert.equal(maximumOnly.ok,true);assert.deepEqual(maximumOnly.ratings,{A:25,B:25,C:25,D:25});
+console.log('Maximums, fixed ratings, invalid bounds, alternate badge routes and improvement limits: PASS');
 const routes=badge('Routes',[[[['A',90]],[['B',80],['C',80]]]]);
 const lowCost=solve({attrs:['A','B','C'],caps:{A:99,B:99,C:99},badges:[routes],targets:{Routes:1},knownBudget:99});
 assert.equal(lowCost.knownCost,0);assert.equal(lowCost.ratings.B,80);assert.equal(lowCost.ratings.C,80);
@@ -93,6 +106,12 @@ const fullPlan=maximize({attrs:Array.from(MODEL.attrs),caps:compute(screenshotPr
 assert.equal(fullPlan.ok,true);assert.ok(fullPlan.knownCost<=99);assert.ok(fullPlan.addedTiers>0);assert.ok(fullPlan.ratings.FT>=70);
 for(const [name,t] of Object.entries(screenshotTargets))assert.ok(tierOf(fullPlan.ratings,BADGES.find(b=>b.name===name))>=t);
 console.log(`Screenshot targets: minimum cost ${fullPlan.minimumKnownCost}, final known cost ${fullPlan.knownCost}/99, +${fullPlan.addedTiers} badge tiers (${Math.round(performance.now()-beforeMax)} ms)`);
+const freeThrowLimited=maximize({attrs:Array.from(MODEL.attrs),caps:compute(screenshotProfile).v,badges:BADGES,targets:screenshotTargets,floors:{FT:70},ceilings:{FT:70,DD:80}});
+assert.equal(freeThrowLimited.ok,true);assert.equal(freeThrowLimited.ratings.FT,70);assert.ok(freeThrowLimited.ratings.DD<=80);
+for(const [name,t] of Object.entries(screenshotTargets))assert.ok(tierOf(freeThrowLimited.ratings,BADGES.find(b=>b.name===name))>=t);
+const blockedWhistle=solve({attrs:Array.from(MODEL.attrs),caps:compute(screenshotProfile).v,badges:BADGES,targets:{'Whistle Wizard':2},ceilings:{FT:70}});
+assert.equal(blockedWhistle.ok,false);assert.equal(blockedWhistle.errors[0].name,'Whistle Wizard');
+console.log('Screenshot targets preserved with Free Throw locked at 70 and Driving Dunk capped at 80: PASS');
 const template=fs.readFileSync(path.join(root,'src/template.html'),'utf8');
 const model=fs.readFileSync(path.join(root,'src/model.json'),'utf8').trim();
 const planner=fs.readFileSync(path.join(root,'src/threshold-planner.js'),'utf8');

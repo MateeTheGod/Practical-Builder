@@ -12,17 +12,22 @@ const ThresholdPlanner = (() => {
     return out;
   }
 
-  function solve({ attrs, caps, badges, targets = {}, floors = {}, dunkMode = 'DD', knownBudget = null }) {
+  function solve({ attrs, caps, badges, targets = {}, floors = {}, ceilings = {}, dunkMode = 'DD', knownBudget = null }) {
     if (knownBudget !== null && (!Number.isFinite(knownBudget) || knownBudget < 0)) throw new Error('Invalid known-cost ceiling');
     if (!['DD', 'SD', 'max'].includes(dunkMode)) throw new Error('Invalid dunk interpretation');
     const base = Object.fromEntries(attrs.map(k => [k, floors[k] === undefined ? 25 : floors[k]]));
     const errors = [];
+    const limits = {};
     for (const k of attrs) {
       if (!Number.isInteger(caps[k]) || caps[k] < 25 || caps[k] > 99) throw new Error('Invalid cap: ' + k);
       if (!Number.isInteger(base[k]) || base[k] < 25 || base[k] > 99) throw new Error('Invalid minimum: ' + k);
+      const maximum = ceilings[k] === undefined ? 99 : ceilings[k];
+      if (!Number.isInteger(maximum) || maximum < 25 || maximum > 99) throw new Error('Invalid maximum: ' + k);
+      limits[k] = Math.min(caps[k], maximum);
       if (base[k] > caps[k]) errors.push({ type: 'floor', attr: k, needed: base[k], cap: caps[k] });
+      else if (base[k] > limits[k]) errors.push({ type: 'ceiling', attr: k, needed: base[k], maximum });
     }
-    const fits = v => Object.entries(v).every(([k, n]) => attrs.includes(k) && n <= caps[k]);
+    const fits = v => Object.entries(v).every(([k, n]) => attrs.includes(k) && n <= limits[k]);
     const constraints = [];
     // Include earlier tiers too, matching the calculator's tierOf() prefix semantics.
     for (const [name, tier] of Object.entries(targets)) {
@@ -79,7 +84,8 @@ const ThresholdPlanner = (() => {
     const budget = COST_RULE.ceiling;
     const required = solve({ ...input, knownBudget: budget });
     if (!required.ok) return required;
-    const { attrs, caps, badges, dunkMode = 'DD' } = input;
+    const { attrs, badges, dunkMode = 'DD' } = input;
+    const caps = Object.fromEntries(attrs.map(k => [k, Math.min(input.caps[k], input.ceilings?.[k] ?? 99)]));
     const value = (v, k) => k !== 'DUNK' ? v[k] : dunkMode === 'max' ? Math.max(v.DD, v.SD) : v[dunkMode];
     const tier = (v, badge) => {
       let t = 0;
