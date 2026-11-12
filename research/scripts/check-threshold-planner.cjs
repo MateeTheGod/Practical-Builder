@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const { solve } = require('../../src/threshold-planner.js');
+const { solve, maximize, knownCost } = require('../../src/threshold-planner.js');
 const root = path.resolve(__dirname, '../..');
 const badge = (name, tiers) => ({ name, tiers });
 const small = (badges, targets, extra={}) => solve({attrs:['A','B'],caps:{A:99,B:99},badges,targets,...extra});
@@ -47,6 +47,28 @@ for(let test=0;test<80;test++){
 }
 console.log('80 independent exhaustive comparisons: PASS');
 
+assert.equal(knownCost({A:89}),0);
+assert.equal(knownCost({A:90}),3);
+assert.equal(knownCost({A:91}),6);
+assert.equal(knownCost({A:97}),24);
+assert.equal(knownCost({A:99,B:90}),33);
+const expensiveAttrs=['A','B','C','D'];
+const expensiveBadges=expensiveAttrs.map(k=>badge(k,[90,93,96,99].map(n=>[[[k,n]]])));
+const costInput={attrs:expensiveAttrs,caps:{A:99,B:99,C:99,D:99},badges:expensiveBadges,targets:{A:4}};
+const improved=maximize(costInput);
+assert.equal(improved.ok,true);assert.equal(improved.ratings.A,99);assert.ok(improved.knownCost<=99);
+const scoreHigh=v=>expensiveAttrs.reduce((sum,k)=>sum+[90,93,96,99].filter(n=>v[k]>=n).length,0);
+let bestScore=0;
+for(const A of [99])for(const B of [89,90,93,96,99])for(const C of [89,90,93,96,99])for(const D of [89,90,93,96,99]){
+  const v={A,B,C,D};if(knownCost(v)<=99)bestScore=Math.max(bestScore,scoreHigh(v));
+}
+assert.equal(scoreHigh(improved.ratings),bestScore);
+assert.equal(maximize({...costInput,targets:{A:4,B:4,C:4,D:4}}).errors[0].type,'budget');
+const routes=badge('Routes',[[[['A',90]],[['B',80],['C',80]]]]);
+const lowCost=solve({attrs:['A','B','C'],caps:{A:99,B:99,C:99},badges:[routes],targets:{Routes:1},knownBudget:99});
+assert.equal(lowCost.knownCost,0);assert.equal(lowCost.ratings.B,80);assert.equal(lowCost.ratings.C,80);
+console.log('Inclusive 90 boundary, locked minimums, known-cost ceiling, alternative routes and improvement score: PASS');
+
 const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
 const source=html.match(/<script>([\s\S]*?)<\/script>/)[1];
 new vm.Script(source);
@@ -64,6 +86,13 @@ for(const profile of profiles){
   for(const k of MODEL.attrs)assert.ok(result.ratings[k]>=25&&result.ratings[k]<=caps[k]);
   console.log(`${profile.pos} ${profile.H}: all available targets jointly met within caps (${Math.round(performance.now()-start)} ms)`);
 }
+const screenshotProfile=profiles[profiles.length-1];
+const screenshotTargets={'Perfect Lays':3,'Relentless Finisher':2,'Traffic Finisher':2,'Limitless Shooter':2,'Relentless Shooter':3,'Tunnel Vision':3,'Quick Draw':3,'Dimer':2,'Glove':1,'Quick Pass':2,'Intimidator':5,'Locks':5,'Thief':2,'Hustler':4};
+const beforeMax=performance.now();
+const fullPlan=maximize({attrs:Array.from(MODEL.attrs),caps:compute(screenshotProfile).v,badges:BADGES,targets:screenshotTargets,floors:{FT:70}});
+assert.equal(fullPlan.ok,true);assert.ok(fullPlan.knownCost<=99);assert.ok(fullPlan.addedTiers>0);assert.ok(fullPlan.ratings.FT>=70);
+for(const [name,t] of Object.entries(screenshotTargets))assert.ok(tierOf(fullPlan.ratings,BADGES.find(b=>b.name===name))>=t);
+console.log(`Screenshot targets: minimum cost ${fullPlan.minimumKnownCost}, final known cost ${fullPlan.knownCost}/99, +${fullPlan.addedTiers} badge tiers (${Math.round(performance.now()-beforeMax)} ms)`);
 const template=fs.readFileSync(path.join(root,'src/template.html'),'utf8');
 const model=fs.readFileSync(path.join(root,'src/model.json'),'utf8').trim();
 const planner=fs.readFileSync(path.join(root,'src/threshold-planner.js'),'utf8');
