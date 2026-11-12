@@ -1,6 +1,6 @@
 # Practical Builder
 
-An attribute calculator and badge finder for the Roblox player builder. Pick a position, height, wingspan, weight, anomaly and body type, and it shows all 22 final attributes and the badges they unlock.
+An attribute cap calculator and badge finder for the Roblox player builder. Pick a position, height, wingspan, weight, anomaly and body type to see 22 predicted maximum caps and potential badge eligibility. These predictions do not establish an attribute allocation achievable at 99 OVR; confirm that allocation in the game creator. Badge names and thresholds are community-reported and unverified in the current game.
 
 Open `index.html` in any browser. It's a single file with nothing to install. To host it, turn on GitHub Pages for this repo (Settings → Pages → deploy from `main`, root folder).
 
@@ -10,6 +10,8 @@ Open `index.html` in any browser. It's a single file with nothing to install. To
 - **±1 flag:** marks values that sit on a rounding edge, where the game may show one higher or lower.
 - **Badge Finder:** searches every legal build (about 45,000) for the badge tiers you pick.
 - **Attribute limits:** in the Badge Finder, add "at least N", "at most N", "highest" or "lowest" for any attribute.
+- **Separate tools:** Calculator and Badge Finder each have their own panel. Switch tabs with Left/Right, Home or End; Tab moves into the selected panel.
+- **Search freshness:** results retain a summary of the requirements used. Changing position, dunk interpretation, badge picks or attribute limits marks results outdated and disables Open until you search again or restore those requirements. Attribute limits apply to predicted caps, not allocated ratings.
 
 ## The formula
 

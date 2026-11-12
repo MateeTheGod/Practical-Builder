@@ -1,4 +1,5 @@
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Player Profile Calculator</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -22,6 +23,7 @@
   --accent:#ff7a3d; --accent-ink:#1a0d05; --good:#4cc47e; --bad:#ff6b63; --warn:#e5a83a;
   --fin:#4aa8f0; --sho:#57c573; --ply:#f0a63a; --def:#f06a60; --phy:#d478de; --pst:#9b88f0; color-scheme:dark}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:15px;line-height:1.45;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 40px}
 .wrap{max-width:1180px;margin:0 auto;display:grid;gap:18px}
@@ -75,6 +77,7 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 select{font:500 15px var(--body);padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);color:var(--fg)}
 .btn{font:600 15px var(--display);letter-spacing:.1em;text-transform:uppercase;border:0;border-radius:8px;padding:10px 18px;background:var(--accent);color:var(--accent-ink);cursor:pointer}
 .btn.ghost{background:transparent;color:var(--fg);border:1px solid var(--line)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
 .results{display:grid;gap:10px}
 .res{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--panel2)}
 .res .b{font:600 17px var(--display);letter-spacing:.06em;text-transform:uppercase}
@@ -82,6 +85,12 @@ select{font:500 15px var(--body);padding:7px 10px;border-radius:8px;border:1px s
 .chip{font-size:12px;padding:2px 8px;border-radius:999px;border:1px solid var(--cat);color:var(--fg);white-space:nowrap}
 .chip.miss{border-style:dashed;color:var(--muted)}
 .status{font-size:14px;color:var(--muted)}
+.notice{border-left:4px solid var(--warn);padding:12px 16px;background:var(--panel2);border-radius:8px}
+.notice p{margin:4px 0}
+.results-stale{border-color:var(--warn)}
+#searchState,#filterState{margin:0 0 8px;color:var(--warn)}
+#searchSummary{margin:0 0 12px;overflow-wrap:anywhere}
+#capStatus{margin:0 0 10px}
 .foot{color:var(--muted);font-size:13px;max-width:80ch}
 .foot p{margin:.4em 0}
 .lim{display:grid;grid-template-columns:minmax(0,1fr) auto 64px 34px;gap:6px;align-items:center}
@@ -98,18 +107,25 @@ select{font:500 15px var(--body);padding:7px 10px;border-radius:8px;border:1px s
   <header>
     <div>
       <h1>Player Profile Calculator</h1>
-      <p class="sub">Final attributes for any build, worked out from the recorded profile screens. The Badge Finder searches every build for the badges you want.</p>
+      <p class="sub">Predicted maximum caps for each physical profile. Find profiles with potential eligibility for your chosen badge tiers.</p>
     </div>
-    <div class="tabs" role="tablist">
-      <button role="tab" id="tab-calc" aria-selected="true">Calculator</button>
-      <button role="tab" id="tab-find" aria-selected="false">Badge Finder</button>
+    <div class="tabs" role="tablist" aria-label="Builder tools">
+      <button role="tab" id="tab-calc" aria-selected="true" aria-controls="view-calc" tabindex="0">Calculator</button>
+      <button role="tab" id="tab-find" aria-selected="false" aria-controls="view-find" tabindex="-1">Badge Finder</button>
     </div>
   </header>
 
-  <section id="view-calc" class="grid">
+  <aside class="notice" aria-label="Prediction limits">
+    <p><strong>Predicted maximum caps, not an attribute allocation.</strong> These values do not establish which ratings you can reach together at 99 OVR. Confirm your allocation in the game creator.</p>
+    <p>All caps are model predictions, including values without a ±1 flag. Badge names and thresholds are community-reported and unverified in the current game. Potential eligibility does not mean badges are earned or equipped.</p>
+  </aside>
+
+  <section id="view-calc" class="grid" role="tabpanel" aria-labelledby="tab-calc" tabindex="0">
     <div class="card ctl" id="controls"></div>
     <div class="ctl" style="min-width:0">
       <div class="card">
+        <h2 class="label" style="margin-top:0">Predicted maximum caps</h2>
+        <p class="status" id="capStatus" aria-live="polite"></p>
         <div class="board" id="board"></div>
         <div class="legend">
           <span><span class="up">+3</span> / <span class="dn">−3</span> change vs the position's base, like the in-game number</span>
@@ -119,7 +135,7 @@ select{font:500 15px var(--body);padding:7px 10px;border-radius:8px;border:1px s
       </div>
       <div class="card">
         <div class="opts" style="justify-content:space-between;margin-bottom:10px">
-          <div class="label">Badges this build unlocks</div>
+          <div class="label">Potential badge eligibility at these caps</div>
           <label class="status"><input type="checkbox" id="showAll"> Show locked badges</label>
         </div>
         <div class="badges" id="badgeList"></div>
@@ -127,19 +143,20 @@ select{font:500 15px var(--body);padding:7px 10px;border-radius:8px;border:1px s
     </div>
   </section>
 
-  <section id="view-find" hidden>
+  <section id="view-find" role="tabpanel" aria-labelledby="tab-find" tabindex="0" hidden>
     <div class="grid">
       <div class="card ctl">
-        <div class="row"><span class="label">Position</span>
+        <div class="row"><label class="label" for="fPos">Position</label>
           <select id="fPos"><option value="ALL">Any position</option></select></div>
-        <div class="row"><span class="label">"Dunk" in badge rules means</span>
+        <div class="row"><label class="label" for="dunkMode">"Dunk" in badge rules means</label>
           <select id="dunkMode"><option value="DD">Driving Dunk</option><option value="SD">Standing Dunk</option><option value="max">Whichever is higher</option></select></div>
         <div class="row"><span class="label">Attribute limits</span>
           <div class="lims" id="lims"></div>
           <div class="opts"><button class="btn ghost" id="addLim" style="padding:7px 12px">+ Add limit</button></div>
           <span class="status" style="font-size:12px">"At least" / "at most" drop builds outside the limit. "Highest" / "lowest" rank the builds that remain.</span></div>
-        <p class="status" style="margin:0">Searches every legal build: all heights, wingspans (height to height+5"), weights in 5 lb steps, body types, and the anomalies that position can pick.</p>
+        <p class="status" style="margin:0">Searches predicted caps across physical profiles: all heights, wingspans (height to height+5"), weights in 5 lb steps, body types, and the anomalies that position can pick. Limits apply to caps, not allocated ratings.</p>
         <div class="opts"><button class="btn" id="run">Find builds</button><button class="btn ghost" id="clear">Clear picks</button></div>
+        <p id="filterState" role="status" aria-live="polite"></p>
         <div class="status" id="pickSummary"></div>
       </div>
       <div class="card" style="min-width:0">
@@ -147,7 +164,9 @@ select{font:500 15px var(--body);padding:7px 10px;border-radius:8px;border:1px s
         <div class="badges" id="picker"></div>
       </div>
     </div>
-    <div class="card" style="margin-top:18px">
+    <div class="card" id="resultCard" style="margin-top:18px">
+      <p id="searchState" role="status" aria-live="polite"></p>
+      <p class="status" id="searchSummary"></p>
       <div class="label" id="resTitle" style="margin-bottom:10px">Results</div>
       <div class="results" id="results"></div>
     </div>
@@ -155,7 +174,7 @@ select{font:500 15px var(--body);padding:7px 10px;border-radius:8px;border:1px s
 
   <div class="foot">
     <p><strong>How it works.</strong> FINAL = base + height effect + wingspan-over-height effect + weight effect + body type + anomaly, rounded once and capped at 99. Each position has its own base row, height slope and anomaly values. Built from 5,110 recorded values, including one-setting-at-a-time sweeps read straight from the game: 97% match exactly and nearly all the rest are off by 1. Height, wingspan and weight limits, body types and each position's anomaly list are the game's real options.</p>
-    <p>Badge thresholds come from the badge sheet you linked. Tiers 1–5 are its five rows in order. Where a rule says "/" or "or", any one option counts.</p>
+    <p>Badge names and thresholds come from a community badge sheet and have not been verified in the current game. Tiers 1–5 are its five rows in order. Where a rule says "/" or "or", any one option counts.</p>
   </div>
 </div>
 
@@ -3030,6 +3049,8 @@ function renderControls(){
 }
 function renderBoard(){
   const res=compute(build),{v,est,alt}=res,P=MODEL.positions[build.pos];const el=document.getElementById("board");el.innerHTML="";
+  const edgeCount=Object.keys(alt).length, estimatedCount=Object.values(est).filter(Boolean).length;
+  document.getElementById("capStatus").textContent=`All 22 caps are predicted. ${edgeCount} have a rounding-edge flag (±1); ${estimatedCount} use effects outside the recorded coverage. Unflagged caps are not verified exact values.`;
   GROUPS.forEach(([title,cat,keys])=>{
     const g=document.createElement("div");g.className="grp";g.style.setProperty("--cat",`var(--${cat})`);
     g.innerHTML=`<h3 style="color:var(--${cat})">${title}</h3>`+keys.map(k=>{
@@ -3062,7 +3083,8 @@ document.getElementById("showAll").onchange=update;
 // ---- finder UI ----
 const fPos=document.getElementById("fPos");
 Object.entries(POSN).forEach(([k,n])=>fPos.insertAdjacentHTML("beforeend",`<option value="${k}">${n}</option>`));
-const dm=document.getElementById("dunkMode");dm.value=dunkMode;dm.onchange=()=>{dunkMode=dm.value;store.set("dunk",dunkMode);update();};
+const dm=document.getElementById("dunkMode");dm.value=dunkMode;dm.onchange=()=>{dunkMode=dm.value;store.set("dunk",dunkMode);update();markSearchChanged();};
+fPos.onchange=()=>markSearchChanged();
 function renderPicker(){
   const el=document.getElementById("picker");el.innerHTML="";
   for(const c of Object.keys(CAT)){
@@ -3071,7 +3093,7 @@ function renderPicker(){
     BADGES.filter(b=>b.cat===c).forEach(b=>{
       const r=document.createElement("div");r.className="brow";const sel=picks[b.name]||0;
       r.innerHTML=`<span class="nm">${b.name}</span><span class="tierpick">${[1,2,3,4,5].map(i=>`<button aria-label="${b.name} tier ${i}" title="${b.tiers[i-1].map(a=>a.map(([k,n])=>n+" "+lbl(k)).join(" & ")).join("  or  ")}" class="${i===sel?"sel":i<sel?"in":""}">${i}</button>`).join("")}</span>`;
-      r.querySelectorAll("button").forEach((btn,i)=>btn.onclick=()=>{if(picks[b.name]===i+1)delete picks[b.name];else picks[b.name]=i+1;store.set("picks",picks);renderPicker();});
+      r.querySelectorAll("button").forEach((btn,i)=>btn.onclick=()=>{if(picks[b.name]===i+1)delete picks[b.name];else picks[b.name]=i+1;store.set("picks",picks);renderPicker();markSearchChanged();});
       box.appendChild(r);
     });
     el.appendChild(box);
@@ -3079,7 +3101,7 @@ function renderPicker(){
   const n=Object.keys(picks).length;
   document.getElementById("pickSummary").textContent=n?`${n} badge${n>1?"s":""} picked: `+Object.entries(picks).map(([k,t])=>`${k} ${t}+`).join(", "):"No badges picked yet.";
 }
-document.getElementById("clear").onclick=()=>{picks={};store.set("picks",picks);renderPicker();};
+document.getElementById("clear").onclick=()=>{picks={};store.set("picks",picks);renderPicker();markSearchChanged();};
 // ---- attribute limits: [attr, op, value]; op = min | max | hi | lo ----
 let lims=store.get("lims",[]);
 const OPS=[["min","At least"],["max","At most"],["hi","Highest"],["lo","Lowest"]];
@@ -3099,7 +3121,24 @@ function renderLims(){
     el.appendChild(r);
   });
 }
-function saveLims(){store.set("lims",lims);}
+function saveLims(){store.set("lims",lims);markSearchChanged();}
+
+// Store the requirements alongside results; stale cards must never open as current matches.
+let searchedRequirements=null;
+function requirementsKey(){return JSON.stringify({pos:fPos.value,dunkMode,picks:Object.entries(picks).sort(([a],[b])=>a.localeCompare(b)),lims});}
+function requirementsSummary(){
+  const parts=[fPos.value==="ALL"?"Any position":POSN[fPos.value],`Dunk: ${dm.selectedOptions[0].textContent}`];
+  parts.push(Object.keys(picks).length?Object.entries(picks).map(([name,tier])=>`${name} tier ${tier}+`).join(", "):"No badge requirements");
+  parts.push(lims.length?lims.map(([k,op,n])=>`${NAMES[k]} ${OPS.find(([key])=>key===op)[1].toLowerCase()}${op==="min"||op==="max"?" "+n:""}`).join(", "):"No cap limits");
+  return parts.join(" · ");
+}
+function markSearchChanged(){
+  const stale=searchedRequirements!==null&&searchedRequirements!==requirementsKey();
+  document.getElementById("filterState").textContent=stale?"Requirements changed—search again.":"";
+  document.getElementById("searchState").textContent=stale?"Requirements changed—search again. Results below use the previous requirements.":"";
+  document.getElementById("resultCard").classList.toggle("results-stale",stale);
+  document.querySelectorAll("#results button").forEach(button=>{button.disabled=stale;});
+}
 document.getElementById("addLim").onclick=()=>{lims.push(["SP","min",80]);saveLims();renderLims();};
 const limPass=v=>lims.every(([k,o,n])=>o==="min"?v[k]>=n:o==="max"?v[k]<=n:true);
 const limScore=v=>lims.reduce((s,[k,o])=>s+(o==="hi"?v[k]:o==="lo"?-v[k]:0),0);
@@ -3111,6 +3150,9 @@ function* allBuilds(pos,wide){
   for(let H=hs[0];H<=hs[1];H++)for(let WS=H;WS<=H+5;WS++)for(let W=ws[0];W<=ws[1];W+=5)for(const B of bodies)for(const A of anoms)yield {pos,H,WS,W,A,B};
 }
 function runFinder(){
+  searchedRequirements=requirementsKey();
+  document.getElementById("searchSummary").textContent="Results for: "+requirementsSummary();
+  markSearchChanged();
   const want=Object.entries(picks).map(([n,t])=>[BADGES.find(b=>b.name===n),t]);
   const out=document.getElementById("results"),title=document.getElementById("resTitle");
   if(!want.length&&!lims.length){out.innerHTML=`<p class="status">Pick at least one badge tier or add an attribute limit, then press Find builds.</p>`;title.textContent="Results";return;}
@@ -3141,18 +3183,28 @@ function runFinder(){
       +[...new Set(lims.map(l=>l[0]))].map(k=>`<span class="chip att">${NAMES[k]} ${r.v[k]}${r.alt[k]!==undefined?" ±1":""}</span>`).join("");
     const others=BADGES.filter(bd=>!picks[bd.name]&&tierOf(r.v,bd)>0).length;
     d.innerHTML=`<div style="min-width:0"><div class="b">${POSN[r.b.pos]} · ${ft(r.b.H)} · WS ${ft(r.b.WS)} · ${r.b.W} lb · ${ANOM.find(a=>a[0]===r.b.A)[1]} · ${r.b.B}</div>
-      <div class="chips">${chips}</div><div class="status" style="margin-top:4px">${r.short?`Short by ${r.short} attribute points in total. `:""}Also unlocks ${others} other badge${others===1?"":"s"}.${r.estN?` ${r.estN} values estimated.`:""}</div></div>
+      <div class="chips">${chips}</div><div class="status" style="margin-top:4px">${r.short?`Predicted caps fall short of the requested badge thresholds by ${r.short} rating points in total. `:""}Potential eligibility for ${others} other badge${others===1?"":"s"}. All caps predicted; ${Object.keys(r.alt).length} rounding-edge flags (±1); ${r.estN} outside recorded coverage.${r.bord?" A requested threshold could fail at a neighboring cap value.":""} 99 OVR allocation unverified.</div></div>
       <button class="btn ghost">Open</button>`;
-    d.querySelector("button").onclick=()=>{build={...r.b};update();selectTab("calc");window.scrollTo({top:0,behavior:"smooth"});};
+    d.querySelector("button").onclick=()=>{build={...r.b};update();selectTab("calc");document.getElementById("tab-calc").focus();window.scrollTo({top:0,behavior:"smooth"});};
     out.appendChild(d);
   });
 }
 document.getElementById("run").onclick=runFinder;
 function selectTab(t){
-  document.getElementById("tab-calc").setAttribute("aria-selected",t==="calc");document.getElementById("tab-find").setAttribute("aria-selected",t==="find");
-  document.getElementById("view-calc").hidden=t!=="calc";document.getElementById("view-find").hidden=t!=="find";
+  for(const name of ["calc","find"]){
+    const active=t===name,tab=document.getElementById("tab-"+name);
+    tab.setAttribute("aria-selected",String(active));tab.tabIndex=active?0:-1;
+    document.getElementById("view-"+name).hidden=!active;
+  }
 }
 document.getElementById("tab-calc").onclick=()=>selectTab("calc");
 document.getElementById("tab-find").onclick=()=>{selectTab("find");};
+document.querySelector(".tabs").addEventListener("keydown",event=>{
+  const keys=["ArrowLeft","ArrowRight","Home","End"];
+  if(!keys.includes(event.key))return;
+  event.preventDefault();
+  const t=event.key==="Home"?"calc":event.key==="End"?"find":event.target.id==="tab-calc"?"find":"calc";
+  selectTab(t);document.getElementById("tab-"+t).focus();
+});
 clampBuild();update();renderPicker();renderLims();runFinder();
 </script>
