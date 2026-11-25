@@ -1,6 +1,6 @@
 # Independent PBLab cap comparison
 
-The fixture in `data/pblab-validation.json` provides a reproducible comparison with PB Build Lab's recorded Player Profile readings. It contains 69 distinct profiles and 1,518 FINAL ratings, observed on November 3, 8 and 9, 2026. It has not been used to refit this repository's model.
+The fixture in `data/pblab-validation.json` provides a reproducible comparison with PB Build Lab's recorded Player Profile readings. It contains 71 distinct profiles and 1,562 FINAL ratings, observed on November 3, 8, 9, 22 and 24, 2026. It has not been used to refit this repository's model.
 
 Run with Node.js 18 or later, without installing packages:
 
@@ -24,6 +24,18 @@ Against model/calculator commit `c13db5303552ee415a0df2b0460ca92b6e185e4d`:
 | Mismatches without a rounding marker | 12 |
 
 The fixture contains 60 PG height/wingspan profiles, the other four position defaults, three additional Center height profiles, and two Center Shooting/body-type profiles. PG and Center defaults already present elsewhere are stored once with their source references combined. All five position defaults reproduce exactly.
+
+## November 2026 additions
+
+Two Center profiles were added after the baseline, and the existing Center default gained a second, matching reading:
+
+| Profile | Observed | Source | Result against `cec460d` |
+| --- | --- | --- | --- |
+| C, 6'11 / 6'11 / 245, None, Bulky, Right | 2026-11-22 | `center-profile-6-11-6-11-245-2026-11-22.json` | 20 of 22 exact; Block predicted 91 (observed 92, unflagged), Speed predicted 72 (observed 71, flagged) |
+| C, 7'0 / 7'5 / 285, None, Normal, Right | 2026-11-24 | `RobloxScreenShot20261124_003947548.png` | 19 of 22 exact; Driving Dunk predicted 90 (observed 89, unflagged), Ball Handle predicted 55 (observed 54, unflagged), Stamina predicted 98 (observed 99, flagged) |
+| C, 7'0 / 7'2 / 275, None, Normal, Right (default) | 2026-11-24 | `RobloxScreenShot20261124_204027641.png` | Re-read in the upgrade screen; all 22 caps match the November 3 reading and the prediction |
+
+With these additions against `cec460d`: 71 profiles, 1,562 ratings, 1,480 exact (94.75%), largest difference 1, 15 unflagged mismatches. The 7'0 / 7'5 / 285 Stamina prediction of 98 is notable: the game showed the 99 ceiling.
 
 ## Provenance and scope
 
